@@ -40,6 +40,14 @@ func xenServer(t *testing.T, steps ...rpcStep) *httptest.Server {
 			http.Error(w, "unexpected request", http.StatusBadRequest)
 			return
 		}
+		step := steps[n]
+		if step.method == "rrd_updates" {
+			if r.Method != http.MethodGet || r.URL.Path != "/rrd_updates" || r.URL.Query().Get("session_id") != testSession {
+				t.Error("expected an authenticated RRD sample request")
+			}
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
 		var req struct {
 			Version string          `json:"jsonrpc"`
 			ID      json.RawMessage `json:"id"`
@@ -54,7 +62,6 @@ func xenServer(t *testing.T, steps ...rpcStep) *httptest.Server {
 		if r.Method != http.MethodPost || r.URL.RequestURI() != "/jsonrpc" || req.Version != "2.0" || len(req.ID) == 0 || string(req.ID) == "null" {
 			t.Errorf("unexpected request: %s %s, version %q, id %s", r.Method, r.URL.RequestURI(), req.Version, req.ID)
 		}
-		step := steps[n]
 		if req.Method != step.method {
 			t.Errorf("call %d: got %q, want %q", n+1, req.Method, step.method)
 		}

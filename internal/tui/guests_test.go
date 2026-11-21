@@ -9,6 +9,7 @@ import (
 	"github.com/advnpzn/xlui/internal/session"
 	"github.com/advnpzn/xlui/internal/xen"
 	"github.com/gdamore/tcell/v2"
+	"github.com/rivo/tview"
 )
 
 func TestGuestEditNeedsExplicitApply(t *testing.T) {
@@ -24,6 +25,47 @@ func TestRenameRunningPoolGuest(t *testing.T) {
 	got := confirmedEdit(t, target, 'r', '2', "RENAME GUEST")
 	if got.Target != target.Identity() || got.Name != "guest" || got.NewName != "guest2" || got.Action != xen.RenameGuest {
 		t.Fatalf("wrong rename: %+v", got)
+	}
+}
+
+func TestGracefulShutdownNeedsExplicitApply(t *testing.T) {
+	target := xen.Domain{Name: "guest", UUID: "11111111-1111-4111-8111-111111111111", ID: 7, State: "Running", ShutdownInstance: "boot-1"}
+	got := confirmedEdit(t, target, 's', 0, "GUESTS")
+	if got.Target != target.Identity() || got.Name != target.Name || got.Instance != target.ShutdownInstance || got.Action != xen.GracefulShutdown {
+		t.Fatalf("wrong shutdown target: %+v", got)
+	}
+}
+
+func TestUnavailableGracefulShutdownIsHidden(t *testing.T) {
+	for _, tc := range []struct {
+		name, provider, state, instance string
+		id                              int
+		control                         bool
+	}{
+		{"local", config.Local, "Running", "boot-1", 7, false},
+		{"ssh", config.SSH, "Running", "boot-1", 7, false},
+		{"control domain", config.XAPI, "Running", "boot-1", 7, true},
+		{"domid zero", config.XAPI, "Running", "boot-1", 0, false},
+		{"missing domid", config.XAPI, "Running", "boot-1", -1, false},
+		{"halted", config.XAPI, "Halted", "boot-1", 7, false},
+		{"paused", config.XAPI, "Paused", "boot-1", 7, false},
+		{"missing evidence or permission", config.XAPI, "Running", "", 7, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			target := xen.Domain{Name: "guest", UUID: "11111111-1111-4111-8111-111111111111", State: tc.state, ID: tc.id, ControlDomain: tc.control, ShutdownInstance: tc.instance}
+			h := &liveSession{profile: config.Profile{Type: tc.provider}, view: newBrowser("inventory"), prepare: func(context.Context, xen.Change) (xen.Plan, error) {
+				panic("opening menu must not prepare a guest change")
+			}}
+			h.view.update(session.Snapshot{ObservedAt: time.Now(), Domains: []xen.Domain{target}})
+			w := &workspace{active: h}
+			w.guestMenu(h)
+			list := w.dialog.body.(*tview.List)
+			for i := range list.GetItemCount() {
+				if label, _ := list.GetItemText(i); label == "Shut down gracefully" {
+					t.Fatal("shutdown offered")
+				}
+			}
+		})
 	}
 }
 
@@ -62,10 +104,12 @@ func confirmedEdit(t *testing.T, target xen.Domain, shortcut, input rune, title 
 	}
 	key(tcell.KeyRune, 'g')
 	key(tcell.KeyRune, shortcut)
-	key(tcell.KeyEnd, 0)
-	key(tcell.KeyRune, input)
-	key(tcell.KeyTab, 0)
-	key(tcell.KeyEnter, 0)
+	if input != 0 {
+		key(tcell.KeyEnd, 0)
+		key(tcell.KeyRune, input)
+		key(tcell.KeyTab, 0)
+		key(tcell.KeyEnter, 0)
+	}
 	result()
 	if w.dialog.title != "REVIEW GUEST CHANGE" {
 		t.Fatal(w.dialog.title)
@@ -79,7 +123,11 @@ func confirmedEdit(t *testing.T, target xen.Domain, shortcut, input rune, title 
 	if w.dialog.title != title {
 		t.Fatal("Back did not restore draft")
 	}
-	key(tcell.KeyEnter, 0)
+	if input == 0 {
+		key(tcell.KeyRune, shortcut) // Reopen the preview from Guests.
+	} else {
+		key(tcell.KeyEnter, 0)
+	}
 	result()
 	key(tcell.KeyTab, 0)
 	key(tcell.KeyEnter, 0)
