@@ -96,7 +96,7 @@ func (b *browser) update(s session.Snapshot) {
 	selected, _ := b.selected()
 	b.rows.Snapshot = s
 	if b.inspect != nil {
-		b.inspect.observe(s)
+		defer b.inspect.observe(s)
 	}
 	if s.ObservedAt.Equal(b.latest) {
 		if lostCPU {
@@ -105,7 +105,25 @@ func (b *browser) update(s session.Snapshot) {
 		return
 	}
 	initial := b.latest.IsZero()
+	previous := b.stats.domains
 	b.stats.sample(s)
+	// The dashboard allocates a new history when a known boot changes, even
+	// when the UUID and domid survive and metrics were temporarily unavailable.
+	replaced := func(k domainKey) bool {
+		return previous[k] != nil && previous[k] != b.stats.domains[k]
+	}
+	if replaced(selected) {
+		selected = domainKey{}
+	}
+	if b.edit != nil && replaced(b.edit.selection) {
+		b.edit.selection = domainKey{}
+	}
+	if b.inspect != nil && replaced(b.inspect.key) {
+		b.inspect.gone, b.inspect.dirty = true, true
+	}
+	if replaced(b.pointer.pressed.domain) || replaced(b.pointer.last.domain) {
+		b.pointer = pointerState{}
+	}
 	b.latest = s.ObservedAt
 	b.project(selected, initial)
 }

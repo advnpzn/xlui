@@ -56,7 +56,10 @@ func (m *Monitor) Read(ctx context.Context) ([]xen.Domain, error) {
 				d.ID = id
 			}
 			live := metrics[r.Metrics]
-			d.ShutdownInstance = m.shutdownInstance(ref, r, d.ID, live.Start)
+			if usableRef(r.Metrics) {
+				d.StartedAt = bootTime(live.Start)
+			}
+			d.ShutdownInstance = m.shutdownInstance(ref, r, d.ID, d.StartedAt)
 			if b, err := live.Memory.Int64(); err == nil && b >= 0 {
 				d.MemoryMiB = b >> 20
 			}
