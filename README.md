@@ -1,59 +1,96 @@
 # xlui
 
-xlui is a keyboard-driven **terminal user interface (TUI) for Xen**. Run it in Dom0 or connect over OpenSSH to browse a live domain list, filter guests and inspect their state and resource usage.
+xlui is a keyboard-driven **terminal user interface (TUI) for Xen**. Browse a live domain list, filter guests and inspect their state, memory, vCPUs and CPU time. Run the TUI in Dom0 or connect to a Xen host over SSH from a Linux workstation.
 
-Planned TUI actions include creating and editing guests, starting and stopping them, and deleting them through the toolstack that manages them. [Management action design](docs/architecture.md#management-actions)
+## Installation
 
-## Launch the TUI
-
-Build on Linux with Go 1.25.0 or newer. Use the latest patched stable Go release for production builds, as CI does.
+On Linux, install from the repository with Git and Go 1.25.0 or newer. Use Git credentials with access to the repository.
 
 ```sh
-go test ./...
-CGO_ENABLED=0 go build -o xlui ./cmd/xlui
-./xlui
-./xlui --host bench --interval 5s
+git clone https://github.com/advnpzn/xlui.git
+cd xlui
+CGO_ENABLED=0 GOBIN="$HOME/.local/bin" go install -trimpath ./cmd/xlui
+export PATH="$HOME/.local/bin:$PATH"
+xlui --help
 ```
 
-The remote host needs a functioning xl installation and an account permitted to list domains. The workstation needs an OpenSSH client. SSH config aliases can carry port and jump host settings. The local command uses the current account and environment to run xl. No automatic privilege escalation is performed.
+If `~/.local/bin` is not already on your `PATH`, add the export line to your shell profile.
 
-For the SSH browser, verify the host key and configure unattended authentication for the destination first. Background reads use OpenSSH batch mode with strict host-key checking. Inventory commands disable agent, X11 and port forwarding.
+## Setup
 
-The browser samples `xl list -v` once per refresh. A failed refresh keeps the last successful sample visible with its timestamp and a **Stale** status. The default refresh delay is five seconds after each collection and can be changed with `--interval`. CPU time is cumulative seconds across vCPUs.
+**Local Xen host.** Run xlui in Dom0 as an account that can run `xl list -v`. The TUI uses the same account to collect inventory.
 
-| TUI action | Keys |
+**Remote Xen host.** Install xlui and the OpenSSH client on your workstation. The remote Dom0 needs `xl` and an account with permission to list domains. Verify the host key and configure key-based authentication so the TUI can refresh without prompting. You can put the user, port or jump host in an SSH config alias. The following alias belongs in `~/.ssh/config`.
+
+```sshconfig
+Host bench
+    HostName xen-host.example
+    User operator
+```
+
+Replace the hostname and user with your own. To check the connection and permissions before opening the TUI, run this command.
+
+```sh
+ssh -o BatchMode=yes -o StrictHostKeyChecking=yes bench xl list -v
+```
+
+## Using the TUI
+
+Run `xlui` to open the local domain list, or `xlui --host bench` to use the SSH alias above.
+
+| Action | Keys |
 | --- | --- |
-| Select a domain and open its inspector | Up/Down, then Enter |
-| Filter domains | `/` to edit, Enter to apply, Esc to cancel an edit |
-| Clear the applied filter from the list | Esc |
-| Scroll the inspector or return to the list | Up/Down or Page Up/Page Down to scroll, Esc to return |
+| Select a domain | ↑ / ↓ |
+| Open the selected domain’s inspector | Enter |
+| Scroll the inspector | ↑ / ↓ or Page Up / Page Down |
+| Return to the list | Esc |
+| Filter the list | `/`, then type a name, ID, UUID or state |
+| Apply or cancel a filter edit | Enter to apply, Esc to cancel |
+| Clear the applied filter | Esc in the list |
 | Quit | `q` outside the filter editor, or Ctrl+C anywhere |
+
+The list refreshes five seconds after each collection. Use `xlui --host bench --interval 10s` to change the delay. If a refresh fails, **Stale** and a timestamp identify the last successful sample. CPU time is cumulative across vCPUs and is measured in seconds.
 
 ## Headless inventory
 
-Use `list` for scripts or a one-time inventory.
+For a one-time listing or a script, use `list`. Redirecting plain-Xen output preserves the original `xl` listing.
 
 ```sh
-./xlui list
-./xlui --host ssh://operator@bench list
+xlui list
+xlui --host bench list
 ```
 
-The plain-Xen `list` command preserves original bytes when redirected to a file or pipe. When stdout or stderr is a terminal, xlui replaces control characters except for the tabs and line feeds used for layout.
+### XenAPI pools
 
-### XAPI pool inventory
-
-Point `--xapi` at the HTTPS pool coordinator and use an account permitted to read VM records. In Bash, enter the password at the prompt and pass it only to xlui.
+The `list` command can also query a pool coordinator over HTTPS. It lists running and halted VMs, identifies control domains and excludes templates and snapshots. Use an account with permission to read VM records. In Bash, enter the password at the prompt.
 
 ```bash
 read -rs -p 'XAPI password: ' pool_password && echo
-XLUI_XAPI_PASSWORD="$pool_password" ./xlui --xapi https://pool.example --xapi-user viewer list
+XLUI_XAPI_PASSWORD="$pool_password" xlui --xapi https://pool.example --xapi-user viewer list
 unset pool_password
 ```
 
-System certificate roots are used by default. Add `--xapi-ca pool-ca.pem` for a private CA. A single `VM.get_all_records` call lists running and halted VMs across the pool, identifies control domains, and filters templates and snapshots. Login and logout each cost one additional request. The client requires XenAPI JSON-RPC 2.0 at `/jsonrpc` and accepts inventory responses up to 32 MiB. Tests exercise a TLS fixture server. Compatibility with individual XCP-ng and XenServer releases still needs a live pool test.
+The coordinator must support XenAPI JSON-RPC 2.0 at `/jsonrpc`. xlui trusts system certificate authorities by default. For a private CA, add `--xapi-ca pool-ca.pem` before `list`. Compatibility with individual XCP-ng and XenServer releases still needs live verification.
 
-## Working on xlui
+## Building from source
 
-- [Architecture and source layout](docs/architecture.md) explains where domain data, terminal views, transports and host actions belong.
-- [TUI design](docs/tui.md) defines reusable widgets, Xen-specific screens and the session interfaces that connect them.
-- [Contributing](CONTRIBUTING.md) covers local checks, test fixtures and Conventional Commits.
+From the repository root, run the tests and build a standalone Linux binary.
+
+```sh
+go test ./...
+CGO_ENABLED=0 go build -trimpath -o xlui ./cmd/xlui
+./xlui --help
+```
+
+CI builds static binaries for Linux amd64 and arm64. To build for an arm64 Xen host from another Linux machine, set the target explicitly.
+
+```sh
+CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -trimpath -o xlui-linux-arm64 ./cmd/xlui
+```
+
+## Project documentation
+
+- [Management actions](docs/architecture.md#management-actions) covers planned guest creation, configuration edits, power controls and deletion.
+- [TUI design](docs/tui.md) describes screens, widgets and keyboard interactions.
+- [Architecture](docs/architecture.md) explains providers, transport and session handling.
+- [Contributing](CONTRIBUTING.md) covers local checks, test fixtures and contributions.
