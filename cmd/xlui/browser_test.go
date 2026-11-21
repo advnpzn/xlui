@@ -21,10 +21,11 @@ func TestBrowserRouting(t *testing.T) {
 		args       []string
 		host       string
 		interval   time.Duration
+		layout     tui.Layout
 	}{
-		{"xl", nil, "local Dom0", 0},
-		{"xl", []string{"--interval", "2s"}, "local Dom0", 2 * time.Second},
-		{"ssh", []string{"--host", "bench", "--interval", "375ms"}, "bench", 375 * time.Millisecond},
+		{"xl", nil, "local Dom0", 0, tui.Overview},
+		{"xl", []string{"--interval", "2s", "--layout", "split"}, "local Dom0", 2 * time.Second, tui.Split},
+		{"ssh", []string{"--host", "bench", "--interval", "375ms", "--layout", "inventory"}, "bench", 375 * time.Millisecond, tui.Inventory},
 	} {
 		t.Run(tc.executable, func(t *testing.T) {
 			dir := t.TempDir()
@@ -38,7 +39,7 @@ func TestBrowserRouting(t *testing.T) {
 				t.Fatal(err)
 			}
 			opened := false
-			browser := func(ctx context.Context, p config.Profile, interval time.Duration, pass string, open tui.OpenSource) error {
+			browser := func(ctx context.Context, p config.Profile, interval time.Duration, layout tui.Layout, pass string, open tui.OpenSource) error {
 				opened = true
 				if _, deadline := ctx.Deadline(); deadline {
 					t.Fatal("CLI set a deadline on the interactive session")
@@ -46,6 +47,9 @@ func TestBrowserRouting(t *testing.T) {
 				host := p.Name
 				if host != tc.host || interval != tc.interval {
 					t.Fatalf("host %q, interval %v", host, interval)
+				}
+				if layout != tc.layout {
+					t.Fatalf("layout %v, want %v", layout, tc.layout)
 				}
 				src, err := open(p, pass)
 				if err != nil {
@@ -72,6 +76,8 @@ func TestBrowserFlags(t *testing.T) {
 		{[]string{"--interval", "99ms"}, "at least 100ms"},
 		{[]string{"--interval", "0s"}, "at least 100ms"},
 		{[]string{"--interval", "5s", "list"}, "only to the interactive browser"},
+		{[]string{"--layout", "split", "list"}, "only to the interactive browser"},
+		{[]string{"--layout", "unknown"}, "choose overview, inventory or split"},
 		{[]string{"--xapi", "https://pool"}, "--xapi-user"},
 		{[]string{"helpme"}, "Usage:"},
 	} {
@@ -84,7 +90,7 @@ func TestBrowserFlags(t *testing.T) {
 
 func TestReadOnlyDropsManagementForEveryOpenedProfile(t *testing.T) {
 	args := []string{"--read-only"}
-	browser := func(ctx context.Context, initial config.Profile, _ time.Duration, _ string, open tui.OpenSource) error {
+	browser := func(ctx context.Context, initial config.Profile, _ time.Duration, _ tui.Layout, _ string, open tui.OpenSource) error {
 		for _, p := range []config.Profile{initial, {Name: "host", Type: config.SSH, Address: "host"}, {Name: "pool", Type: config.XAPI, Address: "https://pool", User: "user"}} {
 			s, err := open(p, "pass")
 			if err != nil {

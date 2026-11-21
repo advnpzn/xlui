@@ -9,7 +9,7 @@ import (
 	"github.com/gdamore/tcell/v2"
 )
 
-func Run(ctx context.Context, initial config.Profile, interval time.Duration, password string, open OpenSource) error {
+func Run(ctx context.Context, initial config.Profile, interval time.Duration, layout Layout, password string, open OpenSource) error {
 	store, err := config.UserStore()
 	if err != nil {
 		return err
@@ -22,11 +22,12 @@ func Run(ctx context.Context, initial config.Profile, interval time.Duration, pa
 		return err
 	}
 	defer screen.Fini()
-	return runScreen(ctx, screen, initial, interval, password, open, store)
+	return runScreen(ctx, screen, initial, interval, layout, password, open, store)
 }
 
-func runScreen(ctx context.Context, screen tcell.Screen, initial config.Profile, interval time.Duration, password string, open OpenSource, store config.Store) error {
+func runScreen(ctx context.Context, screen tcell.Screen, initial config.Profile, interval time.Duration, layout Layout, password string, open OpenSource, store config.Store) error {
 	w := newWorkspace(ctx, initial, interval, open, store)
+	w.layout = layout
 	defer w.close()
 	w.connect(initial, password)
 	screen.EnableMouse(tcell.MouseButtonEvents)

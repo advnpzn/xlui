@@ -71,6 +71,16 @@ xlui writes profiles to `$XDG_CONFIG_HOME/xlui/config.json`, normally `~/.config
 
 ### Read the dashboard
 
+Press **L** or click the current layout in the footer to cycle through dashboard layouts. Use `xlui --layout split` to choose a starting layout. The layout applies to all open sessions for that run.
+
+| Layout | What it shows |
+| --- | --- |
+| `overview` | Host trend charts, domain inventory and a selected-domain summary. This is the default. |
+| `inventory` | A full-width domain table and a one-line resource summary. |
+| `split` | Domain inventory beside live details and charts for the selected domain and host. Narrow terminals use the inventory view until there is space for both panes. |
+
+xlui uses your terminal’s font. JetBrains Mono works well for the charts, box lines and metric columns.
+
 | Reading | Meaning |
 | --- | --- |
 | CPU load | 100% is one fully busy vCPU. A four-vCPU guest can reach 400%. Local and SSH sessions need two successful samples to calculate load. |
@@ -110,6 +120,7 @@ Mouse controls are enabled automatically in terminals that support mouse reporti
 | Switch open sessions | Tab | Click **Next** |
 | Open monitoring settings | `,` | Click **Settings** |
 | Request an inventory refresh now | `r` | Click **Refresh** |
+| Cycle dashboard layouts | `L` | Click the current layout |
 | Shorten or lengthen the monitoring interval | `-` / `+` | Click **[-]** or **[+]** in the header |
 | Select a domain | ↑ / ↓ | Click its row |
 | Cycle domain order | `o` | Click **Sort** |

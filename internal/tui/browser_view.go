@@ -107,29 +107,46 @@ func (b *browser) draw(screen tcell.Screen) {
 		b.notice.SetText(message).Draw(screen)
 		top += lines
 	}
-	if b.inspect == nil && width >= 68 && height >= 20 {
-		b.drawSummary(screen, width, top)
-		top += 5
-		if bottom-top >= 13 {
-			bottom -= 4
-			b.drawSelected(screen, width, bottom)
+	mainWidth := width
+	layout := b.layout
+	if b.inspect == nil {
+		if layout == Split {
+			if width >= 76 && bottom-top >= minSidebarHeight {
+				sideWidth := min(44, width/3)
+				mainWidth = width - sideWidth - 1
+				b.drawSidebar(screen, mainWidth+1, top, sideWidth, bottom-top)
+			} else {
+				layout = Inventory
+			}
+		}
+		switch {
+		case layout == Overview && width >= 68 && height >= 20:
+			b.drawSummary(screen, width, top)
+			top += 5
+			if bottom-top >= 13 {
+				bottom -= 4
+				b.drawSelected(screen, width, bottom)
+			}
+		case layout == Inventory && width >= 36 && bottom-top >= 8:
+			b.drawInventoryTotals(screen, width, top)
+			top++
 		}
 	}
-	left, innerWidth := 0, width
-	if width >= 54 && bottom-top >= 8 {
+	left, innerWidth := 0, mainWidth
+	if width >= 54 && bottom-top >= 8 && (b.inspect != nil || layout != Inventory) {
 		title := "DOMAIN INSPECTOR"
 		if b.inspect == nil {
 			title = b.inventoryHeading()
 		}
-		panel(screen, 0, top, width, bottom-top, title, aqua)
-		left, innerWidth = 2, width-4
+		panel(screen, 0, top, mainWidth, bottom-top, title, aqua)
+		left, innerWidth = 2, mainWidth-4
 		top, bottom = top+1, bottom-1
 	} else if b.inspect == nil && width >= 32 && bottom-top >= 7 {
-		paint(screen, 0, top, width, muted, b.inventoryHeading())
+		paint(screen, 0, top, mainWidth, muted, b.inventoryHeading())
 		top++
 	}
 	if bottom > top {
-		b.rows.layout(innerWidth)
+		b.rows.layout(innerWidth, mainWidth < width)
 		content := tview.Primitive(b.table)
 		if b.inspect != nil {
 			content = b.inspect.render(innerWidth)

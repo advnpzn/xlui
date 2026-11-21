@@ -21,9 +21,9 @@ import (
 	"github.com/advnpzn/xlui/internal/xen/xl"
 )
 
-const usage = "Usage: xlui [--host SSH_DESTINATION | --xapi HTTPS_URL --xapi-user USER [--xapi-ca PEM_FILE]] [--interval DURATION] [--read-only] [list]"
+const usage = "Usage: xlui [--host SSH_DESTINATION | --xapi HTTPS_URL --xapi-user USER [--xapi-ca PEM_FILE]] [--interval DURATION] [--layout NAME] [--read-only] [list]"
 
-type browserFunc func(context.Context, config.Profile, time.Duration, string, tui.OpenSource) error
+type browserFunc func(context.Context, config.Profile, time.Duration, tui.Layout, string, tui.OpenSource) error
 
 func main() {
 	os.Exit(command())
@@ -59,6 +59,7 @@ func runWithBrowser(ctx context.Context, args []string, stdout, stderr io.Writer
 	readOnly := flags.Bool("read-only", false, "disable guest changes in all sessions")
 	host := flags.String("host", "", "OpenSSH destination (omit for local Dom0)")
 	interval := flags.Duration("interval", 0, "override the saved monitoring interval for new sessions (built-in 2s, minimum 100ms)")
+	layoutName := flags.String("layout", "overview", "dashboard layout: overview, inventory or split")
 	endpoint := flags.String("xapi", "", "HTTPS URL of the XAPI pool coordinator")
 	username := flags.String("xapi-user", "", "XAPI user (read the password from XLUI_XAPI_PASSWORD)")
 	caFile := flags.String("xapi-ca", "", "PEM file containing additional trusted XAPI CA certificates")
@@ -87,12 +88,19 @@ func runWithBrowser(ctx context.Context, args []string, stdout, stderr io.Writer
 		if supplied["interval"] {
 			return errors.New("--interval applies only to the interactive browser")
 		}
+		if supplied["layout"] {
+			return errors.New("--layout applies only to the interactive browser")
+		}
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithTimeout(ctx, 30*time.Second)
 		defer cancel()
 	}
 	if interactive && supplied["interval"] && *interval < tui.MinInterval {
 		return fmt.Errorf("--interval must be at least %s", tui.MinInterval)
+	}
+	layout, err := tui.ParseLayout(*layoutName)
+	if err != nil {
+		return err
 	}
 	if supplied["xapi"] {
 		if supplied["host"] {
@@ -110,7 +118,7 @@ func runWithBrowser(ctx context.Context, args []string, stdout, stderr io.Writer
 			if err := p.Validate(); err != nil {
 				return err
 			}
-			return openBrowser(ctx, p, *interval, os.Getenv("XLUI_XAPI_PASSWORD"), openSource)
+			return openBrowser(ctx, p, *interval, layout, os.Getenv("XLUI_XAPI_PASSWORD"), openSource)
 		}
 		return listXAPI(ctx, *endpoint, *username, *caFile, stdout)
 	}
@@ -126,7 +134,7 @@ func runWithBrowser(ctx context.Context, args []string, stdout, stderr io.Writer
 		if *host != "" {
 			p = config.Profile{Name: *host, Type: config.SSH, Address: *host}
 		}
-		return openBrowser(ctx, p, *interval, "", openSource)
+		return openBrowser(ctx, p, *interval, layout, "", openSource)
 	}
 	if err := xl.StreamInventory(ctx, runner, stdout, stderr); err != nil {
 		return fmt.Errorf("domain inventory: %w", err)

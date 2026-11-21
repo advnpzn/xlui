@@ -95,5 +95,12 @@ func (b *browser) drawFooter(screen tcell.Screen, width, top, height int) {
 	if b.inventory != nil {
 		add("[r Refresh]", tcell.KeyRune, 'r')
 	}
+	if b.inspect == nil {
+		label := "[L " + layoutNames[b.layout] + "]"
+		if width < 68 && x+len(label) > width {
+			label = "[L View]"
+		}
+		add(label, tcell.KeyRune, 'L')
+	}
 	add("[q Quit]", tcell.KeyRune, 'q')
 }

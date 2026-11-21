@@ -29,6 +29,8 @@ type browser struct {
 	openCount             int
 	sessions, nextSession func()
 	guests, settings      func()
+	onLayout              func(Layout)
+	layout                Layout
 	host                  string
 	rows                  domainRows
 	table                 *tview.Table
@@ -62,7 +64,7 @@ func newBrowser(host string) *browser {
 		notice:  tview.NewTextView().SetWordWrap(true).SetTextColor(tcell.ColorKhaki),
 		message: tview.NewTextView().SetWordWrap(true).ScrollToBeginning(),
 	}
-	b.rows.layout(80)
+	b.rows.layout(80, false)
 	b.table.SetContent(&b.rows).SetSelectedStyle(tcell.StyleDefault.Background(tcell.NewHexColor(0x1e5361)).Foreground(tcell.ColorWhite).Bold(true))
 	b.table.SetBackgroundColor(surface)
 	b.notice.SetBackgroundColor(surface)
@@ -77,11 +79,16 @@ func newBrowser(host string) *browser {
 }
 
 func (b *browser) selected() (domainKey, bool) {
+	d, ok := b.selectedDomain()
+	return keyOf(d), ok
+}
+
+func (b *browser) selectedDomain() (xen.Domain, bool) {
 	row, _ := b.table.GetSelection()
 	if row < 1 || row > len(b.rows.visible) {
-		return domainKey{}, false
+		return xen.Domain{}, false
 	}
-	return keyOf(b.rows.Domains[b.rows.visible[row-1]]), true
+	return b.rows.Domains[b.rows.visible[row-1]], true
 }
 
 func (b *browser) update(s session.Snapshot) {
@@ -225,6 +232,13 @@ func (b *browser) key(ev *tcell.EventKey) bool {
 			b.inspect = newInspector(key, b.rows.Snapshot)
 		}
 	case tcell.KeyRune:
+		if ev.Rune() == 'L' {
+			b.setLayout((b.layout + 1) % Layout(len(layoutNames)))
+			if b.onLayout != nil {
+				b.onLayout(b.layout)
+			}
+			return false
+		}
 		if ev.Rune() == 'o' {
 			selected, _ := b.selected()
 			b.rows.order = (b.rows.order + 1) % domainOrder(len(orderNames))

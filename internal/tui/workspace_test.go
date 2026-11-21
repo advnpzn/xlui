@@ -59,10 +59,14 @@ func TestSaveOpenAndSwitchSessionsThroughKeyboard(t *testing.T) {
 		}
 	}
 	w.active.view.key(tcell.NewEventKey(tcell.KeyRune, '-', 0))
+	w.active.view.key(tcell.NewEventKey(tcell.KeyRune, 'L', 0))
 	w.active.view.filter.SetText("west")
 	w.active.view.key(tcell.NewEventKey(tcell.KeyTab, 0, 0))
 	if w.active.profile != initial || w.active.view.rows.Domains[0].Name != initial.Name || w.active.view.filter.GetText() != "" {
 		t.Fatal("cross-session state or sample leaked")
+	}
+	if w.active.view.layout != Inventory {
+		t.Fatal("layout reverted when switching sessions")
 	}
 	if w.active.view.inventory.Interval() != time.Minute || w.live[profiles[0]].view.inventory.Interval() != time.Minute-intervalStep {
 		t.Fatal("changing one session altered the other sampling interval")

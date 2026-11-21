@@ -65,7 +65,7 @@ func TestQuitCancelsInFlightRead(t *testing.T) {
 	started := make(chan struct{})
 	done := make(chan error, 1)
 	go func() {
-		done <- runScreen(ctx, screen, config.Profile{Name: "bench", Type: config.Local}, time.Minute, "", func(config.Profile, string) (session.Source, error) {
+		done <- runScreen(ctx, screen, config.Profile{Name: "bench", Type: config.Local}, time.Minute, Overview, "", func(config.Profile, string) (session.Source, error) {
 			return session.Source{Read: func(ctx context.Context) ([]xen.Domain, error) {
 				close(started)
 				<-ctx.Done()

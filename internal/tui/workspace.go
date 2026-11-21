@@ -34,6 +34,7 @@ type workspace struct {
 	initial      config.Profile
 	store        config.Store
 	interval     time.Duration // explicit CLI override, zero uses the saved default
+	layout       Layout
 	preferences  intervalSettings
 	settingsDone chan func()
 	open         OpenSource
@@ -96,6 +97,7 @@ func (w *workspace) connect(p config.Profile, password string) {
 	h.view.inventory = inv
 	h.view.sessions = func() { w.manager("") }
 	h.view.nextSession = w.next
+	h.view.onLayout = func(layout Layout) { w.layout = layout }
 	h.view.settings = func() { w.settings(h) }
 	if h.prepare != nil {
 		h.view.guests = func() { w.guestMenu(h) }
@@ -122,6 +124,7 @@ func (w *workspace) connect(p config.Profile, password string) {
 
 func (w *workspace) activate(h *liveSession) {
 	w.active = h
+	h.view.setLayout(w.layout)
 	h.view.pointer = pointerState{}
 	w.dialog = nil
 }

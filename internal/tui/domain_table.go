@@ -36,21 +36,26 @@ var columnTitles = [...]string{"DOMAIN", "ID", "STATE", "VCPUS", "CPU LOAD", "AL
 
 // Budget space for the metrics first so long names and changing readings
 // cannot push them out of the viewport or shift their positions.
-func (r *domainRows) layout(width int) {
+func (r *domainRows) layout(width int, sidebar bool) {
 	r.widths = [colGuestUsed + 1]int{0, 6, 9, 5, 9, 10, 10}
+	detailWidth, fullWidth := 54, 66
+	if sidebar {
+		// The sidebar already shows identity and guest memory for the selection.
+		detailWidth, fullWidth = 76, 84
+	}
 	r.meters = width >= 90
 	if r.meters {
 		r.widths[colCPU] += 7
 		r.widths[colGuestUsed] += 7
 	}
 	r.columns = append(r.columns[:0], colName)
-	if width >= 54 {
+	if width >= detailWidth {
 		r.columns = append(r.columns, colID)
 	}
 	if width >= 19 {
 		r.columns = append(r.columns, colState)
 	}
-	if width >= 66 {
+	if width >= fullWidth {
 		r.columns = append(r.columns, colVCPUs)
 	}
 	if width >= 31 {
@@ -59,7 +64,7 @@ func (r *domainRows) layout(width int) {
 	if width >= 43 {
 		r.columns = append(r.columns, colAllocated)
 	}
-	if width >= 54 {
+	if width >= detailWidth {
 		r.columns = append(r.columns, colGuestUsed)
 	}
 	r.widths[colName] = width
@@ -139,5 +144,5 @@ func (r *domainRows) GetCell(row, index int) *tview.TableCell {
 
 func meter(fraction float64) string {
 	n := int(math.Round(min(1, max(0, fraction)) * 6))
-	return strings.Repeat("▰", n) + strings.Repeat("▱", 6-n)
+	return strings.Repeat("▪", n) + strings.Repeat("▫", 6-n)
 }

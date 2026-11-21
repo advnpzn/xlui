@@ -78,6 +78,40 @@ func TestTwoRowFooterControls(t *testing.T) {
 	}
 }
 
+func TestSwitchLayoutsKeepsSelectionAndSharesTheInventory(t *testing.T) {
+	v := newMouseView(t)
+	v.screen.SetSize(80, 24)
+	v.table.Select(4, 0)
+	want, _ := v.selected()
+	v.draw(v.screen)
+	v.button(t, "[L Overview]")
+	if _, _, width, _ := v.table.GetRect(); v.layout != Inventory || width != 80 {
+		t.Fatalf("inventory layout %v has table width %d", v.layout, width)
+	}
+	v.key(tcell.NewEventKey(tcell.KeyRune, 'L', 0))
+	v.draw(v.screen)
+	x, y, width, _ := v.table.GetRect()
+	if v.layout != Split || width >= 80 || x+width >= 80 {
+		t.Fatalf("split layout %v has table at %d with width %d", v.layout, x, width)
+	}
+	if key, ok := v.selected(); !ok || key != want {
+		t.Fatalf("layout change selected %v, want %v", key, want)
+	}
+	v.click(79, y+2)
+	if key, ok := v.selected(); !ok || key != want {
+		t.Fatalf("sidebar click selected %v, want %v", key, want)
+	}
+	v.click(x+1, y+2)
+	if key, ok := v.selected(); !ok || key != keyOf(v.rows.Domains[1]) {
+		t.Fatalf("split table click selected %v, want second domain", key)
+	}
+	v.screen.SetSize(46, 12)
+	v.draw(v.screen)
+	if _, _, width, _ := v.table.GetRect(); v.layout != Split || width != 46 {
+		t.Fatalf("split should fall back on a narrow screen, got layout %v and width %d", v.layout, width)
+	}
+}
+
 func TestMouseScrolledRowAndInspector(t *testing.T) {
 	v := newMouseView(t)
 	v.send(2, 3, tcell.WheelDown)
