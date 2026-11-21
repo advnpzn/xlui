@@ -33,8 +33,9 @@ type browser struct {
 	rows                  domainRows
 	table                 *tview.Table
 	filter                *tview.InputField
-	header                *tview.TextView
-	footer                *tview.TextView
+	header                *tview.Box
+	footer                *tview.Box
+	notice                *tview.TextView
 	buttons               []shortcutButton
 	refreshButtons        []shortcutButton
 	pointer               pointerState
@@ -56,14 +57,18 @@ func newBrowser(host string) *browser {
 		host: terminal.SingleLine(host), openCount: 1,
 		table:   tview.NewTable().SetFixed(1, 0),
 		filter:  tview.NewInputField().SetLabel("Filter  "),
-		header:  tview.NewTextView().SetWrap(false),
-		footer:  tview.NewTextView().SetWrap(false),
+		header:  tview.NewBox().SetBackgroundColor(surface),
+		footer:  tview.NewBox().SetBackgroundColor(surface),
+		notice:  tview.NewTextView().SetWordWrap(true).SetTextColor(tcell.ColorKhaki),
 		message: tview.NewTextView().SetWordWrap(true).ScrollToBeginning(),
 	}
+	b.rows.layout(80)
 	b.table.SetContent(&b.rows).SetSelectedStyle(tcell.StyleDefault.Background(tcell.NewHexColor(0x1e5361)).Foreground(tcell.ColorWhite).Bold(true))
 	b.table.SetBackgroundColor(surface)
-	b.footer.SetBackgroundColor(surface)
-	b.footer.SetTextColor(aqua)
+	b.notice.SetBackgroundColor(surface)
+	b.message.SetBackgroundColor(surface)
+	b.filter.SetLabelColor(aqua).SetFieldBackgroundColor(edge).SetFieldTextColor(ink)
+	b.filter.SetBackgroundColor(surface)
 	b.filter.SetChangedFunc(func(string) {
 		key, _ := b.selected()
 		b.project(key, false)
@@ -160,6 +165,9 @@ func (b *browser) key(ev *tcell.EventKey) bool {
 	}
 	if ev.Key() == tcell.KeyRune && b.inventory != nil {
 		switch ev.Rune() {
+		case 'r':
+			b.inventory.Refresh()
+			return false
 		case '-':
 			b.inventory.SetInterval(max(MinInterval, b.inventory.Interval()-intervalStep))
 			return false

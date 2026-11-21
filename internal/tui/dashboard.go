@@ -149,36 +149,36 @@ func stateLabel(state string) string {
 	return state
 }
 
-func (b *browser) drawSummary(s tcell.Screen, w int) {
+func (b *browser) drawSummary(s tcell.Screen, w, y int) {
 	g := &b.stats
 	unit := w / 3
-	panel(s, 0, 1, unit, 5, "VCPU LOAD", aqua)
-	panel(s, unit, 1, unit, 5, "ALLOCATED MEMORY", blue)
-	panel(s, 2*unit, 1, w-2*unit, 5, "INVENTORY", muted)
+	panel(s, 0, y, unit, 5, "VCPU LOAD", aqua)
+	panel(s, unit, y, unit, 5, "ALLOCATED MEMORY", blue)
+	panel(s, 2*unit, y, w-2*unit, 5, "INVENTORY", muted)
 	cpu := "—"
-	if g.cpus > 0 {
+	if g.cpus > 0 && b.lastError == nil {
 		cpu = percent(g.sum.cpu, true)
 	}
 	mem := "—"
 	if g.mems > 0 {
 		mem = memoryLabel(g.sum.ram)
 	}
-	paint(s, 2, 2, unit-4, ink, cpu)
-	paint(s, unit+2, 2, unit-4, ink, mem)
-	paint(s, 2, 3, unit-4, aqua, g.host.cpu.Bars(unit-4))
-	paint(s, unit+2, 3, unit-4, blue, g.host.ram.Bars(unit-4))
-	paint(s, 2, 4, unit-4, muted, fmt.Sprintf("%d domains reporting", g.cpus))
-	paint(s, unit+2, 4, unit-4, muted, fmt.Sprintf("%d domains reporting", g.mems))
-	paint(s, 2*unit+2, 2, w-2*unit-4, ink, fmt.Sprintf("%d domains", len(b.rows.Domains)))
-	paint(s, 2*unit+2, 3, w-2*unit-4, muted, fmt.Sprintf("%d observed vCPUs", g.vcpus))
-	paint(s, 2*unit+2, 4, w-2*unit-4, muted, fmt.Sprintf("Sessions open   %d", b.openCount))
+	paint(s, 2, y+1, unit-4, ink, cpu)
+	paint(s, unit+2, y+1, unit-4, ink, mem)
+	paint(s, 2, y+2, unit-4, aqua, g.host.cpu.Bars(unit-4))
+	paint(s, unit+2, y+2, unit-4, blue, g.host.ram.Bars(unit-4))
+	paint(s, 2, y+3, unit-4, muted, fmt.Sprintf("%d domains reporting", g.cpus))
+	paint(s, unit+2, y+3, unit-4, muted, fmt.Sprintf("%d domains reporting", g.mems))
+	paint(s, 2*unit+2, y+1, w-2*unit-4, ink, fmt.Sprintf("%d domains", len(b.rows.Domains)))
+	paint(s, 2*unit+2, y+2, w-2*unit-4, muted, fmt.Sprintf("%d observed vCPUs", g.vcpus))
+	paint(s, 2*unit+2, y+3, w-2*unit-4, muted, fmt.Sprintf("Open sessions  %d", b.openCount))
 }
 
 func (b *browser) drawSelected(s tcell.Screen, w, y int) {
-	panel(s, 0, y, w, 5, "SELECTED DOMAIN", aqua)
+	panel(s, 0, y, w, 4, "SELECTED DOMAIN", aqua)
 	key, ok := b.selected()
 	if !ok {
-		paint(s, 2, y+2, w-4, muted, "Select a domain to see its measurements.")
+		paint(s, 2, y+2, w-4, muted, "Use ↑↓ or click a domain to select it.")
 		return
 	}
 	row, _ := b.table.GetSelection()
@@ -188,5 +188,4 @@ func (b *browser) drawSelected(s tcell.Screen, w, y int) {
 	t := b.stats.domains[key]
 	paint(s, 2, y+2, mid-4, aqua, "CPU  "+percent(b.rows.CPUPercent(d))+"   "+t.cpu.Bars(mid-22))
 	paint(s, mid, y+2, w-mid-2, blue, "Guest used  "+guestMemory(d)+"   "+t.ram.Bars(w-mid-24))
-	paint(s, 2, y+3, w-4, muted, "Allocated  "+memoryLabel(float64(d.MemoryMiB))+"     UUID  "+d.UUID)
 }

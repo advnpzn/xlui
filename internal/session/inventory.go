@@ -54,7 +54,7 @@ func WatchInventory(ctx context.Context, interval time.Duration, read Reader) (*
 // Updates is a single-consumer stream. An unread frame may be replaced by a newer one.
 func (i *Inventory) Updates() <-chan Snapshot { return i.updates }
 
-// Refresh requests a new observation after a host change. The sampler stays
+// Refresh requests a new observation ahead of the next poll. The sampler stays
 // serial even if a periodic read was already in flight.
 func (i *Inventory) Refresh() {
 	select {

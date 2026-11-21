@@ -2,6 +2,7 @@ package tui
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -11,6 +12,37 @@ import (
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
 )
+
+func TestGuestPreviewScrollsWithButtonsInView(t *testing.T) {
+	screen := tcell.NewSimulationScreen("UTF-8")
+	if err := screen.Init(); err != nil {
+		t.Fatal(err)
+	}
+	defer screen.Fini()
+	screen.SetSize(40, 10)
+	h := &liveSession{profile: config.Profile{Name: "test", Type: config.Local}, view: newBrowser("test")}
+	w := &workspace{active: h}
+	returned := false
+	w.confirmGuest(h, xen.Plan{Description: strings.Repeat("Guest setting to review\n", 10) + "Last setting"}, func() { returned = true })
+	d := w.dialog
+	d.draw(screen)
+	form := d.body.(*tview.Form)
+	for n := range 2 {
+		x, y, width, _ := form.GetButton(n).GetRect()
+		if x < 2 || x+width > 38 || width == 0 || y < 3 || y >= 8 {
+			t.Fatalf("button %d outside the visible dialog at (%d, %d), width %d", n, x, y, width)
+		}
+	}
+	d.key(tcell.NewEventKey(tcell.KeyEnd, 0, 0))
+	d.draw(screen)
+	if offset, _ := d.detail.GetScrollOffset(); offset == 0 {
+		t.Fatal("the preview did not scroll with Back focused")
+	}
+	d.key(tcell.NewEventKey(tcell.KeyEnter, 0, 0))
+	if !returned {
+		t.Fatal("scrolling moved focus from Back")
+	}
+}
 
 func TestGuestEditNeedsExplicitApply(t *testing.T) {
 	target := xen.Domain{Name: "guest", UUID: "11111111-1111-4111-8111-111111111111", ID: -1, State: "Halted"}

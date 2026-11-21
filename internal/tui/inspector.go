@@ -27,6 +27,8 @@ type inspector struct {
 
 func newInspector(key domainKey, s session.Snapshot) *inspector {
 	i := &inspector{key: key, view: tview.NewTextView().ScrollToBeginning()}
+	i.view.SetBackgroundColor(surface)
+	i.view.SetTextColor(ink)
 	i.observe(s)
 	return i
 }

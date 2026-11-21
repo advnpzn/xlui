@@ -2,55 +2,54 @@ package tui
 
 import (
 	"fmt"
+	"time"
+
 	"github.com/advnpzn/xlui/internal/terminal"
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
-	"time"
 )
 
 // Keep freshness ahead of variable-length host names so a narrow terminal
 // still distinguishes a live observation from a cached one.
 func (b *browser) drawHeader(screen tcell.Screen, width int) {
-	status, color := "Loading", tcell.ColorDefault
+	status, color := "Loading", muted
 	if !b.latest.IsZero() {
-		status, color = "Live "+b.latest.Format("15:04:05"), tcell.ColorGreen
+		status, color = "Live "+b.latest.Format("15:04:05"), aqua
 	}
 	if b.lastError != nil {
-		status, color = "Unavailable", tcell.ColorYellow
+		status, color = "Unavailable", tcell.ColorKhaki
 		if !b.latest.IsZero() {
 			status = "Stale " + b.latest.Format("15:04:05")
 		}
 	}
-	title := status + " | " + b.host
-	if b.lastError != nil && !b.latest.IsZero() {
-		title += " | " + terminal.SingleLine(b.lastError.Error())
-	}
-	if width >= 68 {
-		title = "  XLUI   /   " + title
-	}
-	b.header.SetBackgroundColor(surface)
-	b.header.SetTextColor(color).SetText(title)
 	b.header.SetRect(0, 0, width, 1)
 	b.header.Draw(screen)
 	b.refreshButtons = b.refreshButtons[:0]
-	if b.inventory == nil || b.edit != nil {
-		return
+	left, right := 0, width
+	if width >= 68 {
+		paint(screen, 1, 0, 4, ink, "XLUI")
+		left = 7
 	}
-	interval := b.inventory.Interval()
-	value := fmt.Sprintf("%d ms", interval.Milliseconds())
-	if interval%time.Millisecond != 0 {
-		value = interval.String()
+	if b.inventory != nil && b.edit == nil {
+		interval := b.inventory.Interval()
+		value := fmt.Sprintf("%d ms", interval.Milliseconds())
+		if interval%time.Millisecond != 0 {
+			value = interval.String()
+		}
+		label := " [-] " + value + " [+] "
+		x := width - len(label)
+		if x >= left+len(status)+10 {
+			paint(screen, x, 0, len(label), aqua, label)
+			b.refreshButtons = append(b.refreshButtons,
+				shortcutButton{shortcut{"[-]", tcell.KeyRune, '-'}, x + 1, 0},
+				shortcutButton{shortcut{"[+]", tcell.KeyRune, '+'}, width - 4, 0},
+			)
+			right = x
+		}
 	}
-	label := " [-] " + value + " [+] "
-	left := width - len(label)
-	if left < len("Stale 00:00:00") {
-		return
-	}
-	paint(screen, left, 0, len(label), aqua, label)
-	b.refreshButtons = append(b.refreshButtons,
-		shortcutButton{shortcut{"[-]", tcell.KeyRune, '-'}, left + 1},
-		shortcutButton{shortcut{"[+]", tcell.KeyRune, '+'}, width - 4},
-	)
+	paint(screen, left, 0, right-left, color, status)
+	left += len(status)
+	paint(screen, left, 0, right-left, ink, "  │  "+b.host)
 }
 
 func (b *browser) emptyMessage() string {
@@ -72,42 +71,74 @@ func (b *browser) emptyMessage() string {
 	}
 }
 
+func (b *browser) inventoryHeading() string {
+	title := fmt.Sprintf("DOMAINS  %d/%d", len(b.rows.visible), len(b.rows.Domains))
+	if query := b.filter.GetText(); b.edit == nil && query != "" {
+		title += "  ·  Filter: " + query
+	}
+	return title
+}
+
 func (b *browser) draw(screen tcell.Screen) {
 	width, height := screen.Size()
 	if width < 1 || height < 1 {
 		return
 	}
-	b.rows.meters = width >= 92
+	screen.Clear()
 	screen.HideCursor()
 	b.drawHeader(screen, width)
 	if height == 1 {
 		screen.Show()
 		return
 	}
-	content := tview.Primitive(b.table)
-	if b.inspect != nil {
-		content = b.inspect.render(width)
-	} else if len(b.rows.visible) == 0 {
-		content = b.message.SetText(b.emptyMessage())
+	footerHeight := 1
+	if width >= 40 && height >= 10 {
+		footerHeight = 2
 	}
-	if height > 2 {
-		if width >= 68 && height >= 17 {
-			b.drawSummary(screen, width)
-			bottom := height - 1
-			title := "DOMAINS"
-			if b.inspect == nil {
-				bottom -= 5
-				b.drawSelected(screen, width, bottom)
-			} else {
-				title = "DOMAIN INSPECTOR"
-			}
-			panel(screen, 0, 6, width, bottom-6, title, aqua)
-			content.SetRect(1, 7, width-2, bottom-8)
-		} else {
-			content.SetRect(0, 1, width, height-2)
+	footerTop := height - footerHeight
+	top, bottom := 1, footerTop
+	if b.lastError != nil && !b.latest.IsZero() && width >= 3 && height >= 8 {
+		message := "Refresh failed: " + terminal.SingleLine(b.lastError.Error())
+		lines := 1
+		if height >= 14 && tview.TaggedStringWidth(tview.Escape(message)) > width-2 {
+			lines = 2
 		}
+		b.notice.SetRect(1, top, width-2, lines)
+		b.notice.SetText(message).Draw(screen)
+		top += lines
+	}
+	if b.inspect == nil && width >= 68 && height >= 20 {
+		b.drawSummary(screen, width, top)
+		top += 5
+		if bottom-top >= 13 {
+			bottom -= 4
+			b.drawSelected(screen, width, bottom)
+		}
+	}
+	left, innerWidth := 0, width
+	if width >= 54 && bottom-top >= 8 {
+		title := "DOMAIN INSPECTOR"
+		if b.inspect == nil {
+			title = b.inventoryHeading()
+		}
+		panel(screen, 0, top, width, bottom-top, title, aqua)
+		left, innerWidth = 2, width-4
+		top, bottom = top+1, bottom-1
+	} else if b.inspect == nil && width >= 32 && bottom-top >= 7 {
+		paint(screen, 0, top, width, muted, b.inventoryHeading())
+		top++
+	}
+	if bottom > top {
+		b.rows.layout(innerWidth)
+		content := tview.Primitive(b.table)
+		if b.inspect != nil {
+			content = b.inspect.render(innerWidth)
+		} else if len(b.rows.visible) == 0 {
+			content = b.message.SetText(b.emptyMessage())
+		}
+		content.SetRect(left, top, innerWidth, bottom-top)
 		content.Draw(screen)
 	}
-	b.drawFooter(screen, width, height-1)
+	b.drawFooter(screen, width, footerTop, footerHeight)
 	screen.Show()
 }

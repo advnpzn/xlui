@@ -49,14 +49,33 @@ func (v mouseView) click(x, y int) bool {
 
 func (v mouseView) button(t *testing.T, label string) bool {
 	t.Helper()
-	_, height := v.screen.Size()
 	for _, button := range v.buttons {
 		if button.label == label {
-			return v.click(button.x+1, height-1)
+			return v.click(button.x+1, button.y)
 		}
 	}
 	t.Fatalf("button %q missing", label)
 	return false
+}
+
+func TestTwoRowFooterControls(t *testing.T) {
+	v := newMouseView(t)
+	v.screen.SetSize(46, 12)
+	opened := false
+	v.settings = func() { opened = true }
+	v.draw(v.screen)
+	v.button(t, "[, Settings]")
+	if !opened {
+		t.Fatal("Settings did not open from upper footer row")
+	}
+	v.button(t, "[Enter Inspect]")
+	if v.inspect == nil {
+		t.Fatal("Inspect did not open from lower footer row")
+	}
+	v.button(t, "[Esc Back]")
+	if v.inspect != nil {
+		t.Fatal("Back did not leave inspector")
+	}
 }
 
 func TestMouseScrolledRowAndInspector(t *testing.T) {

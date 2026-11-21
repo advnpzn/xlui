@@ -13,6 +13,7 @@ import (
 type connectionDialog struct {
 	title, hint, message string
 	body, focus          tview.Primitive
+	detail               *tview.TextView
 	back                 func()
 	down                 bool
 	pressX, pressY       int
@@ -39,12 +40,39 @@ func (d *connectionDialog) draw(s tcell.Screen) {
 	s.HideCursor()
 	panel(s, 0, 0, w, h, d.title, aqua)
 	paint(s, 2, 1, w-4, muted, d.hint)
-	d.body.SetRect(2, 3, max(0, w-4), max(0, h-6))
-	if h > 6 {
-		d.body.Draw(s)
+	const bodyTop = 3
+	bottom := h - 1
+	width := max(0, w-4)
+	if d.message != "" && width > 0 && h > 6 {
+		message := terminal.SingleLine(d.message)
+		maxRows := max(1, min(3, (h-6)/3))
+		rows := min(len(tview.WordWrap(tview.Escape(message), width)), maxRows)
+		bottom -= rows
+		status := tview.NewTextView().SetWordWrap(true).SetScrollable(false).SetTextColor(tcell.ColorKhaki).SetText(message)
+		status.SetBackgroundColor(surface)
+		status.SetRect(2, bottom, width, rows)
+		status.Draw(s)
+	} else if d.detail != nil && h >= 9 {
+		bottom--
+		hint := "↑↓ Scroll · Tab Choose · Esc Back"
+		if width >= 46 {
+			hint = "↑↓ / wheel Scroll · Tab Choose · Esc Back"
+		}
+		paint(s, 2, bottom, width, muted, hint)
 	}
-	if d.message != "" {
-		paint(s, 2, h-2, w-4, tcell.ColorYellow, d.message)
+	bodyHeight := max(0, bottom-bodyTop)
+	d.body.SetRect(2, bodyTop, width, bodyHeight)
+	if d.detail != nil {
+		d.detail.SetSize(max(1, bodyHeight-2), 0)
+	} else if form, ok := d.body.(*tview.Form); ok {
+		padding := 1
+		if bodyHeight < 12 {
+			padding = 0
+		}
+		form.SetItemPadding(padding)
+	}
+	if bodyHeight > 0 && width > 0 {
+		d.body.Draw(s)
 	}
 	s.Show()
 }
@@ -55,6 +83,13 @@ func (d *connectionDialog) key(e *tcell.EventKey) {
 		return
 	}
 	d.down = false
+	if d.detail != nil {
+		switch e.Key() {
+		case tcell.KeyUp, tcell.KeyDown, tcell.KeyPgUp, tcell.KeyPgDn, tcell.KeyHome, tcell.KeyEnd:
+			d.detail.InputHandler()(e, d.setFocus)
+			return
+		}
+	}
 	if h := d.focus.InputHandler(); h != nil {
 		h(e, d.setFocus)
 	}
@@ -179,6 +214,8 @@ func (w *workspace) chooseType() {
 
 func connectionForm() *tview.Form {
 	f := tview.NewForm().SetLabelColor(aqua).SetFieldBackgroundColor(edge).SetFieldTextColor(ink).SetButtonBackgroundColor(edge).SetButtonTextColor(ink)
+	f.SetButtonActivatedStyle(tcell.StyleDefault.Background(aqua).Foreground(surface).Bold(true))
+	f.SetBorderPadding(0, 0, 1, 1)
 	f.SetBackgroundColor(surface)
 	return f
 }

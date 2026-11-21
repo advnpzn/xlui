@@ -1,12 +1,13 @@
 package tui
 
 import (
+	"math"
+	"strings"
+
 	"github.com/advnpzn/xlui/internal/session"
 	"github.com/advnpzn/xlui/internal/terminal"
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
-	"math"
-	"strings"
 )
 
 type domainRows struct {
@@ -15,35 +16,95 @@ type domainRows struct {
 	visible []int
 	meters  bool
 	order   domainOrder
+	columns []domainColumn
+	widths  [colGuestUsed + 1]int
 }
 
-var columns = [...]string{"DOMAIN", "ID", "STATE", "VCPUS", "CPU LOAD", "ALLOCATED", "GUEST USED"}
+type domainColumn int
 
-func (r *domainRows) GetColumnCount() int { return len(columns) }
+const (
+	colName domainColumn = iota
+	colID
+	colState
+	colVCPUs
+	colCPU
+	colAllocated
+	colGuestUsed
+)
+
+var columnTitles = [...]string{"DOMAIN", "ID", "STATE", "VCPUS", "CPU LOAD", "ALLOCATED", "GUEST USED"}
+
+// Budget space for the metrics first so long names and changing readings
+// cannot push them out of the viewport or shift their positions.
+func (r *domainRows) layout(width int) {
+	r.widths = [colGuestUsed + 1]int{0, 6, 9, 5, 9, 10, 10}
+	r.meters = width >= 90
+	if r.meters {
+		r.widths[colCPU] += 7
+		r.widths[colGuestUsed] += 7
+	}
+	r.columns = append(r.columns[:0], colName)
+	if width >= 54 {
+		r.columns = append(r.columns, colID)
+	}
+	if width >= 19 {
+		r.columns = append(r.columns, colState)
+	}
+	if width >= 66 {
+		r.columns = append(r.columns, colVCPUs)
+	}
+	if width >= 31 {
+		r.columns = append(r.columns, colCPU)
+	}
+	if width >= 43 {
+		r.columns = append(r.columns, colAllocated)
+	}
+	if width >= 54 {
+		r.columns = append(r.columns, colGuestUsed)
+	}
+	r.widths[colName] = width
+	for _, col := range r.columns[1:] {
+		r.widths[colName] -= r.widths[col] + 1
+	}
+}
+
+func (r *domainRows) GetColumnCount() int { return len(r.columns) }
 func (r *domainRows) GetRowCount() int    { return len(r.visible) + 1 }
 
 // tview requests visible cells, so a repaint formats only rows that fit on screen.
-func (r *domainRows) GetCell(row, col int) *tview.TableCell {
-	if col < 0 || col >= len(columns) || row < 0 || row > len(r.visible) {
+func (r *domainRows) GetCell(row, index int) *tview.TableCell {
+	if index < 0 || index >= len(r.columns) || row < 0 || row > len(r.visible) {
 		return nil
 	}
+	col := r.columns[index]
+	width := r.widths[col]
+	align := tview.AlignRight
+	if col == colName || col == colState {
+		align = tview.AlignLeft
+	}
 	if row == 0 {
-		title := columns[col]
-		if col == 0 && r.order != orderProvider {
+		title := columnTitles[col]
+		if col == colName && r.order != orderProvider && len(title)+3+len(orderNames[r.order]) <= width {
 			title += " / " + orderNames[r.order]
 		}
-		return tview.NewTableCell(title).SetSelectable(false).SetAttributes(tcell.AttrBold).SetTextColor(aqua)
+		padding := strings.Repeat(" ", max(0, width-len(title)))
+		if align == tview.AlignLeft {
+			title += padding
+		} else {
+			title = padding + title
+		}
+		return tview.NewTableCell(title).SetMaxWidth(width).SetSelectable(false).SetAttributes(tcell.AttrBold).SetTextColor(aqua)
 	}
 	d := r.Domains[r.visible[row-1]]
 	color := ink
 	var text string
 	switch col {
-	case 0:
-		return tview.NewTableCell(tview.Escape(terminal.SingleLine(d.Name))).SetMaxWidth(28).SetExpansion(1)
-	case 1:
+	case colName:
+		text = tview.Escape(terminal.SingleLine(d.Name))
+	case colID:
 		color = muted
 		text = number(d.ID)
-	case 2:
+	case colState:
 		text = tview.Escape(terminal.SingleLine(stateLabel(d.State)))
 		switch text {
 		case "Running":
@@ -55,25 +116,25 @@ func (r *domainRows) GetCell(row, col int) *tview.TableCell {
 		default:
 			color = muted
 		}
-	case 3:
+	case colVCPUs:
 		text = number(d.VCPUs)
-	case 4:
+	case colCPU:
 		pct, ok := r.CPUPercent(d)
 		text = percent(pct, ok)
 		color = aqua
 		if r.meters && ok && d.VCPUs > 0 {
 			text = meter(pct/(float64(d.VCPUs)*100)) + " " + text
 		}
-	case 5:
+	case colAllocated:
 		text = memoryLabel(float64(d.MemoryMiB))
-	case 6:
+	case colGuestUsed:
 		text = guestMemory(d)
 		color = blue
 		if r.meters && d.GuestUsedKiB != nil && d.MemoryMiB > 0 {
 			text = meter(float64(*d.GuestUsedKiB)/(float64(d.MemoryMiB)*1024)) + " " + text
 		}
 	}
-	return tview.NewTableCell(text).SetTextColor(color)
+	return tview.NewTableCell(text).SetMaxWidth(width).SetAlign(align).SetTextColor(color)
 }
 
 func meter(fraction float64) string {

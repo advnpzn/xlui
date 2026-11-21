@@ -54,6 +54,7 @@ func TestRenderedInventoryStates(t *testing.T) {
 	expect("No matching domains", "Esc to clear")
 	ui.key(tcell.NewEventKey(tcell.KeyEsc, 0, tcell.ModNone))
 	ui.update(session.Snapshot{Domains: domains, ObservedAt: ui.latest, Err: errors.New("offline")})
+	expect("Stale", "Refresh failed: offline", "worker")
 	screen.SetSize(26, 6)
 	expect("Stale", "worker")
 	ui.update(session.Snapshot{Domains: domains, ObservedAt: observed.Add(2 * time.Second)})
@@ -70,6 +71,42 @@ func TestRenderedInventoryStates(t *testing.T) {
 	expect("UUID")
 	screen.SetSize(8, 1)
 	expect("Live")
+}
+
+func TestInventoryColumnsFitLongNames(t *testing.T) {
+	screen := tcell.NewSimulationScreen("UTF-8")
+	if err := screen.Init(); err != nil {
+		t.Fatal(err)
+	}
+	defer screen.Fini()
+	ui := newBrowser("bench")
+	domain := xen.Domain{ID: 123, Name: strings.Repeat("worker", 16), State: "Suspended", MemoryMiB: 2048}
+	ui.update(session.Snapshot{Domains: []xen.Domain{domain}, ObservedAt: time.Now()})
+	for _, tc := range []struct {
+		width int
+		want  []string
+	}{
+		{80, []string{"Suspended", "CPU LOAD", "2.0 GiB", "GUEST USED"}},
+		{46, []string{"Suspended", "CPU LOAD", "2.0 GiB"}},
+		{26, []string{"Suspended", "worker"}},
+	} {
+		screen.SetSize(tc.width, 12)
+		ui.draw(screen)
+		_, top, _, _ := ui.table.GetRect()
+		var cells strings.Builder
+		for y := top; y <= top+1; y++ {
+			for x := range tc.width {
+				ch, _, _, _ := screen.GetContent(x, y)
+				cells.WriteRune(ch)
+			}
+			cells.WriteByte('\n')
+		}
+		for _, want := range tc.want {
+			if !strings.Contains(cells.String(), want) {
+				t.Errorf("width %d missing %q in\n%s", tc.width, want, cells.String())
+			}
+		}
+	}
 }
 
 func TestCancelFilterRestoresOnlyTheOriginalInstance(t *testing.T) {

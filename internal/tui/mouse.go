@@ -23,10 +23,10 @@ type pointerState struct {
 	down          bool
 }
 
-func (b *browser) mouseTarget(x, y, height int) mouseTarget {
+func (b *browser) mouseTarget(x, y int) mouseTarget {
 	target := mouseTarget{x: x, y: y}
-	if y == 0 || y == height-1 {
-		if b.edit != nil && b.filter.InRect(x, y) {
+	if y == 0 || b.footer.InRect(x, y) {
+		if y > 0 && b.edit != nil && b.filter.InRect(x, y) {
 			target.field = true
 			return target
 		}
@@ -35,7 +35,7 @@ func (b *browser) mouseTarget(x, y, height int) mouseTarget {
 			buttons = b.refreshButtons
 		}
 		for _, button := range buttons {
-			if x >= button.x && x < button.x+len(button.label) {
+			if y == button.y && x >= button.x && x < button.x+len(button.label) {
 				target.button = button.shortcut
 				if b.edit == nil && button.key == tcell.KeyEnter {
 					target.domain, _ = b.selected()
@@ -78,7 +78,7 @@ func (b *browser) mouse(ev *tcell.EventMouse, width, height int) bool {
 			b.table.MouseHandler()(direction, ev, nil)
 		}
 	case tcell.ButtonPrimary:
-		target := b.mouseTarget(x, y, height)
+		target := b.mouseTarget(x, y)
 		if !p.down {
 			p.pressed = target
 		} else if p.pressed != target {
@@ -89,7 +89,7 @@ func (b *browser) mouse(ev *tcell.EventMouse, width, height int) bool {
 		target := p.pressed
 		p.down = false
 		p.pressed = mouseTarget{}
-		if target == (mouseTarget{}) || target != b.mouseTarget(x, y, height) {
+		if target == (mouseTarget{}) || target != b.mouseTarget(x, y) {
 			p.last = mouseTarget{}
 			return false
 		}

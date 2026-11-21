@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/advnpzn/xlui/internal/terminal"
 	"github.com/gdamore/tcell/v2"
 )
 
@@ -17,73 +16,84 @@ type shortcut struct {
 // Only fully visible buttons are clickable. Labels use single-cell ASCII.
 type shortcutButton struct {
 	shortcut
-	x int
+	x, y int
 }
 
-func (b *browser) drawFooter(screen tcell.Screen, width, y int) {
-	var line strings.Builder
-	start := 0
+func (b *browser) drawFooter(screen tcell.Screen, width, top, height int) {
 	b.buttons = b.buttons[:0]
+	b.footer.SetRect(0, top, width, height)
+	b.footer.Draw(screen)
+	bottom := top + height - 1
+	margin, spacing := 1, 2
+	if width < 68 {
+		margin, spacing = 0, 1
+	}
+	x, y := margin, bottom
 	add := func(label string, key tcell.Key, char rune) {
-		x := start + line.Len()
 		if x+len(label) > width {
 			return
 		}
-		b.buttons = append(b.buttons, shortcutButton{shortcut{label, key, char}, x})
-		line.WriteString(label)
-		line.WriteString("  ")
+		b.buttons = append(b.buttons, shortcutButton{shortcut{label, key, char}, x, y})
+		paint(screen, x, y, len(label), ink, label)
+		if end := strings.IndexByte(label, ' '); end > 1 {
+			paint(screen, x+1, y, end-1, aqua, label[1:end])
+		}
+		x += len(label) + spacing
 	}
 
-	if b.edit == nil && b.sessions != nil {
+	if b.edit != nil {
+		const apply, cancel = "[Enter Apply]", "[Esc Cancel]"
+		controlWidth := len(apply) + spacing + len(cancel)
+		x = width
+		if width >= controlWidth+16 {
+			x = width - controlWidth
+		}
+		b.filter.SetRect(0, y, x, 1)
+		b.filter.Draw(screen)
+		add(apply, tcell.KeyEnter, 0)
+		add(cancel, tcell.KeyEsc, 0)
+		if height == 2 {
+			paint(screen, 1, top, width-2, muted, fmt.Sprintf("%d of %d domains match", len(b.rows.visible), len(b.rows.Domains)))
+		}
+		return
+	}
+
+	if b.inspect != nil {
+		add("[Esc Back]", tcell.KeyEsc, 0)
+	} else {
+		if _, ok := b.selected(); ok {
+			inspect := "[Enter Inspect]"
+			if width < 32 {
+				inspect = "[Enter View]"
+			}
+			add(inspect, tcell.KeyEnter, 0)
+		}
+		add("[/ Filter]", tcell.KeyRune, '/')
+		if b.filter.GetText() != "" {
+			add("[Esc Clear]", tcell.KeyEsc, 0)
+		}
+		add("[o Sort]", tcell.KeyRune, 'o')
+	}
+	if b.guests != nil {
+		add("[g Guests]", tcell.KeyRune, 'g')
+	}
+	if b.inspect != nil && height == 2 {
+		paint(screen, x, y, width-x, muted, "↑↓ or wheel to scroll")
+	}
+	if height == 2 {
+		x, y = margin, top
+	}
+	if b.sessions != nil {
 		add("[s Sessions]", tcell.KeyRune, 's')
 		if b.openCount > 1 {
 			add("[Tab Next]", tcell.KeyTab, 0)
 		}
 	}
-	if b.edit == nil && b.guests != nil {
-		add("[g Guests]", tcell.KeyRune, 'g')
+	if b.settings != nil {
+		add("[, Settings]", tcell.KeyRune, ',')
 	}
-	switch {
-	case b.edit != nil:
-		const apply, cancel = "[Enter Apply]", "[Esc Cancel]"
-		const controlWidth = len(apply) + 2 + len(cancel)
-		// Leave room to type on narrow screens. Keyboard shortcuts still work.
-		start = width
-		if width >= controlWidth+16 {
-			start = width - controlWidth
-		}
-		b.filter.SetRect(0, y, start, 1)
-		b.filter.Draw(screen)
-		add(apply, tcell.KeyEnter, 0)
-		add(cancel, tcell.KeyEsc, 0)
-	case b.inspect != nil:
-		add("[Esc Back]", tcell.KeyEsc, 0)
-		add("[q Quit]", tcell.KeyRune, 'q')
-		if b.settings != nil {
-			add("[, Settings]", tcell.KeyRune, ',')
-		}
-		line.WriteString("↑↓ scroll")
-	default:
-		add("[/ Filter]", tcell.KeyRune, '/')
-		query := b.filter.GetText()
-		if query != "" {
-			add("[Esc Clear]", tcell.KeyEsc, 0)
-		}
-		if _, ok := b.selected(); ok {
-			add("[Enter Inspect]", tcell.KeyEnter, 0)
-		}
-		add("[q Quit]", tcell.KeyRune, 'q')
-		add("[o Sort]", tcell.KeyRune, 'o')
-		if b.settings != nil {
-			add("[, Settings]", tcell.KeyRune, ',')
-		}
-		fmt.Fprintf(&line, "%d/%d domains", len(b.rows.visible), len(b.rows.Domains))
-		if query != "" {
-			line.WriteString("   Filter: " + terminal.SingleLine(query))
-		}
+	if b.inventory != nil {
+		add("[r Refresh]", tcell.KeyRune, 'r')
 	}
-	if start < width {
-		b.footer.SetRect(start, y, width-start, 1)
-		b.footer.SetText(line.String()).Draw(screen)
-	}
+	add("[q Quit]", tcell.KeyRune, 'q')
 }

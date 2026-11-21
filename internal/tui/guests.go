@@ -9,6 +9,7 @@ import (
 	"github.com/advnpzn/xlui/internal/config"
 	"github.com/advnpzn/xlui/internal/terminal"
 	"github.com/advnpzn/xlui/internal/xen"
+	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
 )
 
@@ -198,7 +199,9 @@ func (w *workspace) guestWork(h *liveSession, title string, preview bool, work f
 func (w *workspace) confirmGuest(h *liveSession, plan xen.Plan, back func()) {
 	f := connectionForm()
 	description := fmt.Sprintf("Connection %s\n%s\n\n%s", terminal.SingleLine(h.profile.Name), terminal.SingleLine(connectionAddress(h.profile)), plan.Description)
-	f.AddTextView("", description, 0, 8, false, true)
+	detail := tview.NewTextView().SetWordWrap(true).SetText(description).ScrollToBeginning()
+	f.SetBorderPadding(0, 0, 0, 0)
+	f.AddFormItem(detail)
 	f.AddButton("Back", back).AddButton("Apply", func() {
 		if h.view.lastError != nil {
 			w.dialog.message = "Inventory is stale. Prepare a new preview."
@@ -214,12 +217,18 @@ func (w *workspace) confirmGuest(h *liveSession, plan xen.Plan, back func()) {
 					message = err.Error()
 				}
 				form := connectionForm()
+				form.SetBorderPadding(0, 0, 0, 0)
+				if err != nil {
+					form.SetFieldTextColor(tcell.ColorKhaki)
+				}
+				detail := tview.NewTextView().SetWordWrap(true).SetText(terminal.SingleLine(message)).ScrollToBeginning()
 				done := func() { w.activate(h) }
-				form.AddTextView("", message, 0, 6, false, true).AddButton("Done", done)
-				w.show(title, h.profile.Name, form, done)
+				form.AddFormItem(detail).AddButton("Done", done)
+				form.SetFocus(1)
+				w.show(title, h.profile.Name, form, done).detail = detail
 			}
 		})
 	})
 	f.SetFocus(1) // Back is the initial button. Applying requires a deliberate selection.
-	w.show("REVIEW GUEST CHANGE", "Review the host and values. Select Apply to send the change.", f, back)
+	w.show("REVIEW GUEST CHANGE", "Check the target and settings", f, back).detail = detail
 }
