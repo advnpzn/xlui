@@ -8,8 +8,8 @@ import pexpect
 
 def check_guest(console):
     # Poky reference images can prompt for a passwordless root login or autologin.
-    prompt = r"(?m)^[^\r\n]*# "
-    boot = console.expect([r"(?m)^[^\r\n]* login: ", prompt], timeout=180)
+    prompt = r"(?:^|[\r\n])[^\r\n]*# "
+    boot = console.expect([r"(?:^|[\r\n])[^\r\n]* login: ", prompt], timeout=180)
     if boot == 0:
         console.sendline("root")
         console.expect(prompt)
