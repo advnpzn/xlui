@@ -58,7 +58,7 @@ func runWithBrowser(ctx context.Context, args []string, stdout, stderr io.Writer
 	}
 	readOnly := flags.Bool("read-only", false, "disable guest changes in all sessions")
 	host := flags.String("host", "", "OpenSSH destination (omit for local Dom0)")
-	interval := flags.Duration("interval", tui.DefaultInterval, "override the saved monitoring interval for new sessions (minimum 100ms)")
+	interval := flags.Duration("interval", 0, "override the saved monitoring interval for new sessions (built-in 2s, minimum 100ms)")
 	endpoint := flags.String("xapi", "", "HTTPS URL of the XAPI pool coordinator")
 	username := flags.String("xapi-user", "", "XAPI user (read the password from XLUI_XAPI_PASSWORD)")
 	caFile := flags.String("xapi-ca", "", "PEM file containing additional trusted XAPI CA certificates")
@@ -91,12 +91,8 @@ func runWithBrowser(ctx context.Context, args []string, stdout, stderr io.Writer
 		ctx, cancel = context.WithTimeout(ctx, 30*time.Second)
 		defer cancel()
 	}
-	if interactive && *interval < tui.MinInterval {
+	if interactive && supplied["interval"] && *interval < tui.MinInterval {
 		return fmt.Errorf("--interval must be at least %s", tui.MinInterval)
-	}
-	// Zero lets the browser use the saved preference when the flag was omitted.
-	if !supplied["interval"] {
-		*interval = 0
 	}
 	if supplied["xapi"] {
 		if supplied["host"] {

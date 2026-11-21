@@ -4,52 +4,61 @@ import (
 	"bytes"
 	"os"
 	"path/filepath"
-	"slices"
 	"testing"
 	"time"
 )
 
-func TestIntervalAndConnectionsMergeAcrossWriters(t *testing.T) {
+func TestIntervalPreservesConnectionFile(t *testing.T) {
 	s := Store{Path: filepath.Join(t.TempDir(), "config.json")}
 	const legacy = `{"version":1,"connections":[{"name":"board","type":"ssh","address":"arm-board"}]}`
 	if err := os.WriteFile(s.Path, []byte(legacy), 0600); err != nil {
 		t.Fatal(err)
 	}
-	before, err := s.LoadInterval()
-	if err != nil || before != 0 {
-		t.Fatalf("legacy interval = %v, %v", before, err)
-	}
-	local := Profile{Name: "local", Type: Local}
-	if _, err := s.Save(nil, local); err != nil {
-		t.Fatal(err)
-	}
 	const interval = time.Second + 500*time.Microsecond
-	if err := s.SaveInterval(before, interval); err != nil {
-		t.Fatal(err)
+	for _, step := range [][2]time.Duration{{0, interval}, {interval, 0}} {
+		if err := s.SaveInterval(step[0], step[1]); err != nil {
+			t.Fatal(err)
+		}
+		got, err := s.LoadInterval()
+		if err != nil || got != step[1] {
+			t.Fatalf("saved interval = %v, %v", got, err)
+		}
+		data, err := os.ReadFile(s.Path)
+		if err != nil || string(data) != legacy {
+			t.Fatalf("connection file changed: %q, %v", data, err)
+		}
 	}
-	if err := s.SaveInterval(before, 2*time.Second); err == nil {
-		t.Fatal("accepted stale interval")
+}
+
+func TestConcurrentIntervalSavesHaveOneWinner(t *testing.T) {
+	s := Store{Path: filepath.Join(t.TempDir(), "config.json")}
+	type result struct {
+		interval time.Duration
+		err      error
 	}
-	updated := local
-	updated.Name = "development"
-	if _, err := s.Save(&local, updated); err != nil {
-		t.Fatal(err)
+	start := make(chan struct{})
+	done := make(chan result, 2)
+	for _, interval := range []time.Duration{time.Second, time.Minute} {
+		go func() {
+			<-start
+			done <- result{interval, s.SaveInterval(0, interval)}
+		}()
+	}
+	close(start)
+	first, second := <-done, <-done
+	if (first.err == nil) == (second.err == nil) {
+		t.Fatalf("expected one successful edit, got %v and %v", first, second)
+	}
+	winner := first.interval
+	if first.err != nil {
+		winner = second.interval
+	}
+	if err := s.SaveInterval(0, 2*time.Second); err == nil {
+		t.Fatal("accepted stale edit")
 	}
 	got, err := s.LoadInterval()
-	if err != nil || got != interval {
-		t.Fatalf("interval after profile edit = %v, %v", got, err)
-	}
-	if err := s.SaveInterval(got, 0); err != nil {
-		t.Fatal(err)
-	}
-	data, err := os.ReadFile(s.Path)
-	if err != nil || bytes.Contains(data, []byte("default_interval")) {
-		t.Fatalf("clearing preference: %q, %v", data, err)
-	}
-	profiles, err := s.Load()
-	want := []Profile{{Name: "board", Type: SSH, Address: "arm-board"}, updated}
-	if err != nil || !slices.Equal(profiles, want) {
-		t.Fatalf("profiles after interval edits = %v, %v", profiles, err)
+	if err != nil || got != winner {
+		t.Fatalf("stored interval = %v, %v, winner = %v", got, err, winner)
 	}
 }
 
@@ -66,19 +75,19 @@ func TestInvalidIntervalPreservesConfiguration(t *testing.T) {
 	if err := s.SaveInterval(0, MinInterval); err != nil {
 		t.Fatal(err)
 	}
-	data, err := os.ReadFile(s.Path)
+	data, err := os.ReadFile(s.preferencesPath())
 	if err != nil || !bytes.Contains(data, []byte(`"default_interval": "100ms"`)) {
 		t.Fatalf("expected human-readable duration: %q, %v", data, err)
 	}
 	for _, value := range []string{`"99ms"`, `"-1s"`, `"9223372036854775808ns"`, `1`, `"never"`} {
 		original := `{"version":1,"default_interval":` + value + `}`
-		if err := os.WriteFile(s.Path, []byte(original), 0600); err != nil {
+		if err := os.WriteFile(s.preferencesPath(), []byte(original), 0600); err != nil {
 			t.Fatal(err)
 		}
 		if err := s.SaveInterval(0, time.Second); err == nil {
 			t.Errorf("replaced config containing %s", value)
 		}
-		data, err := os.ReadFile(s.Path)
+		data, err := os.ReadFile(s.preferencesPath())
 		if err != nil || string(data) != original {
 			t.Fatalf("configuration lost: %s, %v", value, err)
 		}

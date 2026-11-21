@@ -55,6 +55,9 @@ func (w *workspace) settings(h *liveSession) {
 			current := intervalSettings{saved: interval}
 			if err != nil {
 				current.saved, current.err = w.store.LoadInterval()
+				if current.err != nil {
+					current.saved = before
+				}
 			}
 			select {
 			case w.settingsDone <- func() {

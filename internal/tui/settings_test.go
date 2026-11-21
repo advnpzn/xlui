@@ -2,6 +2,7 @@ package tui
 
 import (
 	"context"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -107,5 +108,24 @@ func TestSessionSettings(t *testing.T) {
 		if got != tc.want {
 			t.Fatalf("on restart with override %s: got %s, want %s", tc.override, got, tc.want)
 		}
+	}
+
+	// Losing access to the preferences directory makes both save and reload fail.
+	// Keep using the last observed default for sessions opened in this process.
+	blocked := filepath.Join(t.TempDir(), "unavailable")
+	if err := os.WriteFile(blocked, nil, 0600); err != nil {
+		t.Fatal(err)
+	}
+	w.store.Path = filepath.Join(blocked, "config.json")
+	key(tcell.KeyEsc, 0)
+	edit("3s", true)
+	awaitSave()
+	if w.dialog == nil || w.dialog.message == "" || w.active.view.inventory.Interval() != 5*time.Second {
+		t.Fatal("unreadable preferences did not report a failed save")
+	}
+	key(tcell.KeyEsc, 0)
+	w.connect(config.Profile{Name: "another", Type: config.Local}, "")
+	if got := w.active.view.inventory.Interval(); got != time.Minute {
+		t.Fatalf("failed save and reload discarded the last observed default: %s", got)
 	}
 }

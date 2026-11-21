@@ -3,16 +3,11 @@
 package config
 
 import (
-	"bytes"
-	"encoding/json"
 	"errors"
-	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
-	"syscall"
 	"unicode"
 
 	"github.com/advnpzn/xlui/internal/transport"
@@ -67,9 +62,8 @@ func (p Profile) Validate() error {
 
 type Store struct{ Path string }
 type settings struct {
-	Version         int           `json:"version"`
-	Connections     []Profile     `json:"connections"`
-	DefaultInterval savedInterval `json:"default_interval,omitempty"`
+	Version     int       `json:"version"`
+	Connections []Profile `json:"connections"`
 }
 
 func UserStore() (Store, error) {
@@ -81,28 +75,15 @@ func UserStore() (Store, error) {
 }
 
 func (s Store) Load() ([]Profile, error) {
-	cfg, err := s.load()
-	if err != nil {
-		return nil, err
-	}
-	return cfg.Connections, nil
-}
-
-func (s Store) load() (*settings, error) {
-	data, err := ReadFile(s.Path, 1<<20)
-	if errors.Is(err, os.ErrNotExist) {
-		return &settings{Version: 1}, nil
-	}
-	if err != nil {
-		return nil, err
-	}
 	var cfg settings
-	dec := json.NewDecoder(bytes.NewReader(data))
-	dec.DisallowUnknownFields()
-	if err := dec.Decode(&cfg); err != nil {
-		return nil, fmt.Errorf("read xlui configuration: %w", err)
+	err := readJSON(s.Path, &cfg)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil, nil
 	}
-	if dec.Decode(new(any)) != io.EOF || cfg.Version != 1 {
+	if err != nil {
+		return nil, err
+	}
+	if cfg.Version != 1 {
 		return nil, errors.New("invalid or unsupported xlui configuration")
 	}
 	seen := map[string]bool{}
@@ -115,7 +96,7 @@ func (s Store) load() (*settings, error) {
 		}
 		seen[p.Name] = true
 	}
-	return &cfg, nil
+	return cfg.Connections, nil
 }
 
 // Save merges one edit under a lock so two xlui processes cannot lose each
@@ -124,73 +105,34 @@ func (s Store) Save(before *Profile, after Profile) ([]Profile, error) {
 	if err := after.Validate(); err != nil {
 		return nil, err
 	}
-	cfg, err := s.update(func(cfg *settings) error {
-		index := -1
-		if before != nil {
-			index = slices.Index(cfg.Connections, *before)
-			if index < 0 {
-				return errors.New("connection changed on disk; reopen the connection manager")
-			}
-		}
-		for i, p := range cfg.Connections {
-			if i != index && p.Name == after.Name {
-				return errors.New("connection name already exists")
-			}
-		}
-		if index < 0 {
-			cfg.Connections = append(cfg.Connections, after)
-		} else {
-			cfg.Connections[index] = after
-		}
-		return nil
-	})
-	if err != nil {
-		return nil, err
-	}
-	return cfg.Connections, nil
-}
-
-func (s Store) update(edit func(*settings) error) (*settings, error) {
-	dir := filepath.Dir(s.Path)
-	if err := os.MkdirAll(dir, 0700); err != nil {
-		return nil, err
-	}
-	lock, err := os.OpenFile(s.Path+".lock", os.O_CREATE|os.O_RDWR|syscall.O_NOFOLLOW, 0600)
+	lock, err := lockConfig(s.Path)
 	if err != nil {
 		return nil, err
 	}
 	defer lock.Close()
-	if err = syscall.Flock(int(lock.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err != nil {
-		return nil, fmt.Errorf("configuration busy: %w", err)
-	}
-	cfg, err := s.load()
+	profiles, err := s.Load()
 	if err != nil {
 		return nil, err
 	}
-	if err := edit(cfg); err != nil {
+	index := -1
+	if before != nil {
+		index = slices.Index(profiles, *before)
+		if index < 0 {
+			return nil, errors.New("connection changed on disk; reopen the connection manager")
+		}
+	}
+	for i, p := range profiles {
+		if i != index && p.Name == after.Name {
+			return nil, errors.New("connection name already exists")
+		}
+	}
+	if index < 0 {
+		profiles = append(profiles, after)
+	} else {
+		profiles[index] = after
+	}
+	if err := writeJSON(s.Path, settings{1, profiles}); err != nil {
 		return nil, err
 	}
-	data, err := json.MarshalIndent(cfg, "", "  ")
-	if err != nil {
-		return nil, err
-	}
-	if len(data)+1 > 1<<20 {
-		return nil, errors.New("configuration exceeds 1 MiB")
-	}
-	tmp, err := os.CreateTemp(dir, ".connections-*")
-	if err != nil {
-		return nil, err
-	}
-	defer os.Remove(tmp.Name())
-	_, err = tmp.Write(append(data, '\n'))
-	if err == nil {
-		err = tmp.Sync()
-	}
-	if err = errors.Join(err, tmp.Close()); err != nil {
-		return nil, err
-	}
-	if err = os.Rename(tmp.Name(), s.Path); err != nil {
-		return nil, err
-	}
-	return cfg, nil
+	return profiles, nil
 }
