@@ -32,6 +32,7 @@ func TestInspectorBootObservation(t *testing.T) {
 	for _, unknown := range []time.Time{{}, s.ObservedAt.Add(time.Hour)} {
 		vm.StartedAt = unknown
 		s.Domains = []xen.Domain{vm}
+		s.ObservedAt = s.ObservedAt.Add(time.Second)
 		b.update(s)
 		if text := render(); strings.Contains(text, "Uptime") || strings.Contains(text, "Started") {
 			t.Fatalf("rendered unavailable boot time:\n%s", text)
@@ -39,8 +40,30 @@ func TestInspectorBootObservation(t *testing.T) {
 	}
 	vm.StartedAt = start.Add(time.Minute)
 	s.Domains = []xen.Domain{vm}
+	s.ObservedAt = s.ObservedAt.Add(time.Second)
 	b.update(s)
 	if !b.inspect.gone || strings.Contains(render(), "Uptime") {
 		t.Fatal("inspector followed a different boot with a reused domid")
+	}
+	b.key(tcell.NewEventKey(tcell.KeyEsc, 0, 0))
+	if _, ok := b.selected(); ok {
+		t.Fatal("returning from the old inspector selected the replacement")
+	}
+
+	// Select the new instance, then filter it out. Cancelling the edit must
+	// never restore the old selection after a further reboot.
+	b.key(tcell.NewEventKey(tcell.KeyDown, 0, 0))
+	if _, ok := b.selected(); !ok {
+		t.Fatal("could not deliberately select the replacement")
+	}
+	b.key(tcell.NewEventKey(tcell.KeyRune, '/', 0))
+	b.filter.SetText("missing")
+	vm.StartedAt = start.Add(90 * time.Second)
+	s.Domains = []xen.Domain{vm}
+	s.ObservedAt = s.ObservedAt.Add(time.Second)
+	b.update(s)
+	b.key(tcell.NewEventKey(tcell.KeyEsc, 0, 0))
+	if _, ok := b.selected(); ok {
+		t.Fatal("cancelling the filter restored a replacement instance")
 	}
 }

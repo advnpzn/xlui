@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"strings"
+	"time"
 
 	"github.com/advnpzn/xlui/internal/session"
 	"github.com/advnpzn/xlui/internal/terminal"
@@ -24,7 +25,10 @@ var (
 
 type observation struct{ cpu, ram float64 }
 
-type trend struct{ cpu, ram widgets.Series }
+type trend struct {
+	cpu, ram widgets.Series
+	boot     time.Time // last reliable start of this instance, retained across gaps
+}
 
 func (t *trend) push(p observation) {
 	t.cpu.Push(p.cpu, !math.IsNaN(p.cpu))
@@ -47,8 +51,12 @@ func (g *dashboard) sample(s session.Snapshot) {
 	for _, d := range domains {
 		k := keyOf(d)
 		t := g.domains[k]
-		if t == nil {
+		knownBoot := !d.StartedAt.IsZero() && !d.StartedAt.After(s.ObservedAt)
+		if t == nil || (knownBoot && !t.boot.IsZero() && !t.boot.Equal(d.StartedAt)) {
 			t = &trend{}
+		}
+		if knownBoot {
+			t.boot = d.StartedAt
 		}
 		hist[k] = t
 		p := observation{math.NaN(), math.NaN()}

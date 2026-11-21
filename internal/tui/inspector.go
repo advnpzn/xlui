@@ -20,7 +20,6 @@ type inspector struct {
 	memory     widgets.Series
 	sequence   uint64
 	observedAt time.Time
-	boot       time.Time // last known boot of the inspected instance
 	rate       string
 	gone       bool
 	dirty      bool
@@ -49,13 +48,6 @@ func (i *inspector) observe(s session.Snapshot) {
 	i.dirty = true
 	for _, d := range s.Domains {
 		if keyOf(d) == i.key {
-			if !d.StartedAt.IsZero() && !d.StartedAt.After(s.ObservedAt) {
-				if !i.boot.IsZero() && !i.boot.Equal(d.StartedAt) {
-					i.gone = true
-					return
-				}
-				i.boot = d.StartedAt
-			}
 			i.domain = d
 			i.observedAt = s.ObservedAt
 			pct, ok := s.CPUPercent(d)
