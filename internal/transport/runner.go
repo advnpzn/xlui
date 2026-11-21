@@ -9,6 +9,7 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"time"
 )
 
 var destination = regexp.MustCompile(`^(ssh://)?([a-zA-Z0-9_][a-zA-Z0-9._-]*@)?([a-zA-Z0-9][a-zA-Z0-9._-]*|\[[a-fA-F0-9:]+\])$`)
@@ -45,6 +46,8 @@ func (r Runner) Run(ctx context.Context, stdout, stderr io.Writer, program strin
 	}
 	cmd.Stdout = stdout
 	cmd.Stderr = stderr
+	// A surviving SSH helper or toolstack subprocess may retain an output pipe.
+	cmd.WaitDelay = time.Second
 	if err := cmd.Run(); err != nil {
 		if ctx.Err() != nil {
 			return ctx.Err()

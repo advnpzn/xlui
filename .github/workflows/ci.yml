@@ -11,8 +11,10 @@ jobs:
         with:
           go-version-file: go.mod
           cache: false
-      - run: go test ./...
+      - run: go test -race ./...
       - run: go vet ./...
+      - name: Measure bulk inventory parsing
+        run: go test -run '^$' -bench BenchmarkReadDomains -benchmem ./internal/xen/xl
       - name: Build static Linux clients
         shell: bash
         run: |
