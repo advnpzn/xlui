@@ -118,3 +118,20 @@ func BenchmarkReadDomains256(b *testing.B) {
 		}
 	}
 }
+
+func TestReadDomainsDebianARM64(t *testing.T) {
+	// Captured from Debian trixie on a disposable QEMU ARM64 Xen Dom0.
+	// Xen reported 4.20.5-pre (package 4.20.4+63-g7abfd2bce2-0+deb13u1).
+	data, err := os.ReadFile("testdata/list-v-debian-4.20-arm64.txt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := ReadDomains(context.Background(), &listRunner{stdout: string(data)})
+	want := []xen.Domain{{
+		Name: "Domain-0", ControlDomain: true, ID: 0, UUID: "00000000-0000-0000-0000-000000000000",
+		MemoryMiB: 768, VCPUs: 1, State: "r-----", CPUSeconds: 10.9,
+	}}
+	if err != nil || !reflect.DeepEqual(got, want) {
+		t.Fatalf("got %#v, %v; want %#v", got, err, want)
+	}
+}
