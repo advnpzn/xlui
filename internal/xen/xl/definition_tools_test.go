@@ -47,9 +47,6 @@ esac
 		t.Fatal(err)
 	}
 	t.Setenv("TEST_EXTERNAL_CP", cp)
-	writeTool("cp", `[ "$TEST_CAN_COPY_ATTRIBUTES" = yes ] || exit 1
-exec "$TEST_EXTERNAL_CP" "$@"
-`)
 	t.Setenv("PATH", bin)
 	dir := t.TempDir()
 	original := "name='worker'\nuuid='12345678-1234-1234-1234-123456789abc'\nvcpus=1 # keep\n"
@@ -85,14 +82,22 @@ exec "$TEST_EXTERNAL_CP" "$@"
 	}
 	m := definitions{transport.Runner{}, dir}
 	req := xen.Change{Action: xen.SetVCPUs, Name: "worker", VCPUs: 2}
-	t.Setenv("TEST_CAN_COPY_ATTRIBUTES", "no")
-	plan, err := m.prepare(t.Context(), req)
-	if err == nil || !strings.Contains(err.Error(), "cp") || !strings.Contains(err.Error(), "metadata") || plan.Apply != nil {
-		t.Fatalf("preview without metadata support: plan %q, error %v", plan.Description, err)
+	expectUnavailable := func() {
+		t.Helper()
+		plan, err := m.prepare(t.Context(), req)
+		if err == nil || !strings.Contains(err.Error(), "cp") || !strings.Contains(err.Error(), "metadata") || plan.Apply != nil {
+			t.Fatalf("preview without metadata support: plan %q, error %v", plan.Description, err)
+		}
+		checkFile(original)
 	}
-	checkFile(original)
+	expectUnavailable() // No external cp in PATH.
+	writeTool("cp", `[ "$TEST_CAN_COPY_ATTRIBUTES" = yes ] || exit 1
+exec "$TEST_EXTERNAL_CP" "$@"
+`)
+	t.Setenv("TEST_CAN_COPY_ATTRIBUTES", "no")
+	expectUnavailable() // External cp exists but does not support the operation.
 	t.Setenv("TEST_CAN_COPY_ATTRIBUTES", "yes")
-	plan, err = m.prepare(t.Context(), req)
+	plan, err := m.prepare(t.Context(), req)
 	if err != nil {
 		t.Fatal(err)
 	}
