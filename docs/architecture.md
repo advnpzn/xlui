@@ -35,7 +35,9 @@ The session owns the mutable sample history. Publish immutable snapshots and coa
 
 ## Management actions
 
-The planned TUI supports creating guests, editing configuration, controlling power and deleting resources. Each screen offers actions supported for the selected resource and its current state. An explicit read-only mode should suppress modification commands and reject write requests in the session. Host and pool permissions remain authoritative for every write.
+The Guests screen submits a typed change to the active provider. Its preview binds a one-use operation to that session. The terminal event loop owns the confirmation dialog. Workers recheck the target and return the verified result. The executable removes the write capability from every source in `--read-only` mode. Host or pool permissions govern each provider call.
+
+The xl provider publishes a new boot definition without replacing an existing file. It serializes xlui writers on Dom0, checks a digest before replacing an edited file, and passes configuration bytes on standard input. The XenAPI provider serializes pool RPCs with the sampler, checks the VM reference and relevant state before dispatch, and reads back the resulting record. Other management clients can change host or pool state independently. A lost mutation reply requires reconciliation. Power controls and deletion are planned separately.
 
 An edit preview shows the changed fields with their current and proposed values. If the target or an edited field changes before confirmation, show the updated values and let the operator review them again.
 

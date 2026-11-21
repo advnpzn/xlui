@@ -40,7 +40,7 @@ func TestReadDomains(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := []xen.Domain{
-		{Name: "Domain-0", ID: 0, MemoryMiB: 670, VCPUs: 4, State: "r-----", CPUSeconds: 9684.2, UUID: "00000000-0000-0000-0000-000000000000"},
+		{ControlDomain: true, Name: "Domain-0", ID: 0, MemoryMiB: 670, VCPUs: 4, State: "r-----", CPUSeconds: 9684.2, UUID: "00000000-0000-0000-0000-000000000000"},
 		{Name: "worker  01", ID: 9, MemoryMiB: 2048, VCPUs: 2, State: "-b----", CPUSeconds: 123, UUID: "b586dd4f-32ba-478e-a5ca-9c2640c7ef54"},
 		{Name: "a guest with a longer than forty character visible name", ID: 42, MemoryMiB: 512, VCPUs: 1, State: "---sS-", UUID: "02f547a0-a926-452c-a5c1-6f36b01cca9e"},
 	}

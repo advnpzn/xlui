@@ -1,6 +1,6 @@
 # xlui
 
-xlui is a **terminal user interface (TUI) for Xen**. Monitor multiple Xen hosts from one terminal, follow CPU and memory usage by domain, and switch between saved local, SSH and XenAPI connections with the keyboard or mouse.
+xlui is a **terminal user interface (TUI) for Xen**. Monitor multiple Xen hosts, create guests, and edit boot memory and vCPUs from the keyboard or mouse. Switch between saved local, SSH and XenAPI connections while each session keeps sampling.
 
 ## Installation
 
@@ -65,12 +65,26 @@ xlui writes profiles to `$XDG_CONFIG_HOME/xlui/config.json`, normally `~/.config
 
 A dash means the provider has no reading. Guest memory requires a reporting guest agent and permission to read its metrics. XenAPI lists VMs across the pool. CPU and guest memory charts cover the VM series served by the configured endpoint. [XenServer metrics documentation](https://docs.xenserver.com/us/en/xenserver/developer/sdk-guide/using-http.html)
 
+### Create and edit guests
+
+Press **g** or click **Guests**. Select an action, fill in the form, and choose **Preview**. Check the connection, guest identity and proposed settings, then select **Apply**. To disable guest changes across all sessions, start `xlui --read-only`.
+
+| Connection | Create a guest | Edit memory or vCPUs |
+| --- | --- | --- |
+| Local Dom0 or SSH | **Create guest** saves `/etc/xen/<name>.cfg` and starts a Linux guest using a kernel and self-contained initramfs already on Dom0. For disk-backed guests or custom networking, use **Start from saved definition** with a prepared Xen configuration. | Select a guest or open its saved definition by name. Changes apply the next time the guest is created from the file. |
+| XenAPI | Select a halted guest, choose **Create guest**, and give the clone a new name. You can also enter the source UUID. The pool returns a new halted VM. | Select a halted VM. Set startup vCPUs within its configured maximum, or set a fixed memory target within its static limits. |
+
+On Dom0, the account needs permission to run `xl` and work in `/etc/xen`. The write path uses `sh`, `flock` and GNU coreutils. Existing files must have a matching guest name and an explicit guest UUID. Edits support single-line assignments and an explicit decimal `memory` or `vcpus` field. Other fields and comments are preserved. Starting a saved definition uses the host's JSON `xl create -n` output and its configured disks and devices. Use a XenAPI session for a pool-managed host.
+
+xlui rechecks the target before dispatch and reads it back to verify the result. If starting a new Dom0 guest fails after its definition is saved, inspect the file and inventory before using **Start from saved definition**. If a pool connection drops during a write, inspect the VM in the pool before retrying.
+
 ### Navigation
 
 Mouse controls are enabled automatically in terminals that support mouse reporting. The buttons at the bottom of the screen also show their keyboard shortcuts.
 
 | Action | Keyboard | Mouse |
 | --- | --- | --- |
+| Create or edit a guest | `g` | Click **Guests** |
 | Manage connections | `s` | Click **Sessions** |
 | Switch open sessions | Tab | Click **Next** |
 | Shorten or lengthen the monitoring interval | `-` / `+` | Click **[-]** or **[+]** in the header |
@@ -126,7 +140,7 @@ CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -trimpath -o xlui-linux-arm64 ./c
 
 ## Project documentation
 
-- [Management actions](docs/architecture.md#management-actions) covers planned guest creation, configuration edits, power controls and deletion.
+- [Management actions](docs/architecture.md#management-actions) covers implemented guest changes and the design for power controls and deletion.
 - [TUI design](docs/tui.md) describes screens, widgets and keyboard interactions.
 - [Architecture](docs/architecture.md) explains providers, transport and session handling.
 - [Contributing](CONTRIBUTING.md) covers local checks, test fixtures and contributions.

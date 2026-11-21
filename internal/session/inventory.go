@@ -29,6 +29,7 @@ type Inventory struct {
 	updates    chan Snapshot
 	interval   atomic.Int64
 	reschedule chan struct{}
+	refresh    chan struct{}
 	cancel     context.CancelFunc
 	done       chan struct{}
 }
@@ -41,6 +42,7 @@ func WatchInventory(ctx context.Context, interval time.Duration, read Reader) (*
 	i := &Inventory{
 		updates:    make(chan Snapshot, 1),
 		reschedule: make(chan struct{}, 1),
+		refresh:    make(chan struct{}, 1),
 		cancel:     cancel,
 		done:       make(chan struct{}),
 	}
@@ -51,6 +53,15 @@ func WatchInventory(ctx context.Context, interval time.Duration, read Reader) (*
 
 // Updates is a single-consumer stream. An unread frame may be replaced by a newer one.
 func (i *Inventory) Updates() <-chan Snapshot { return i.updates }
+
+// Refresh requests a new observation after a host change. The sampler stays
+// serial even if a periodic read was already in flight.
+func (i *Inventory) Refresh() {
+	select {
+	case i.refresh <- struct{}{}:
+	default:
+	}
+}
 
 func (i *Inventory) Interval() time.Duration { return time.Duration(i.interval.Load()) }
 
@@ -97,6 +108,7 @@ func (i *Inventory) poll(ctx context.Context, read Reader) {
 		i.updates <- latest
 		// Anchor the cadence to the start of the read. Skip any slots the
 		// provider was busy for, including when the interval changes mid-read.
+	wait:
 		for {
 			period := i.Interval()
 			next := finished.Add(period - finished.Sub(started)%period)
@@ -108,6 +120,8 @@ func (i *Inventory) poll(ctx context.Context, read Reader) {
 			select {
 			case <-ctx.Done():
 				return
+			case <-i.refresh:
+				break wait
 			case <-i.reschedule:
 			case <-timer.C:
 			}
@@ -116,6 +130,7 @@ func (i *Inventory) poll(ctx context.Context, read Reader) {
 }
 
 type Source struct {
-	Read  Reader
-	Close func()
+	Prepare xen.Prepare
+	Read    Reader
+	Close   func()
 }

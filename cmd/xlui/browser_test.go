@@ -80,3 +80,25 @@ func TestBrowserFlags(t *testing.T) {
 		}
 	}
 }
+
+func TestReadOnlyDropsManagementForEveryOpenedProfile(t *testing.T) {
+	args := []string{"--read-only"}
+	browser := func(ctx context.Context, initial config.Profile, _ time.Duration, _ string, open tui.OpenSource) error {
+		for _, p := range []config.Profile{initial, {Name: "host", Type: config.SSH, Address: "host"}, {Name: "pool", Type: config.XAPI, Address: "https://pool", User: "user"}} {
+			s, err := open(p, "pass")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if s.Prepare != nil || s.Read == nil {
+				t.Fatal("read-only session exposed incorrect capabilities")
+			}
+			if s.Close != nil {
+				s.Close()
+			}
+		}
+		return nil
+	}
+	if err := runWithBrowser(t.Context(), args, io.Discard, io.Discard, browser); err != nil {
+		t.Fatal(err)
+	}
+}

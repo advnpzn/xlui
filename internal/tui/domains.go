@@ -27,6 +27,7 @@ type browser struct {
 	inventory             *session.Inventory
 	openCount             int
 	sessions, nextSession func()
+	guests                func()
 	host                  string
 	rows                  domainRows
 	table                 *tview.Table
@@ -156,6 +157,10 @@ func (b *browser) key(ev *tcell.EventKey) bool {
 			b.inventory.SetInterval(min(time.Duration(math.MaxInt64)-intervalStep, b.inventory.Interval()) + intervalStep)
 			return false
 		}
+	}
+	if ev.Key() == tcell.KeyRune && ev.Rune() == 'g' && b.guests != nil {
+		b.guests()
+		return false
 	}
 	if ev.Key() == tcell.KeyRune && ev.Rune() == 's' && b.sessions != nil {
 		b.sessions()

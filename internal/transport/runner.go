@@ -30,6 +30,11 @@ func NewRunner(host string) (Runner, error) {
 }
 
 func (r Runner) Run(ctx context.Context, stdout, stderr io.Writer, program string, args ...string) error {
+	return r.RunInput(ctx, nil, stdout, stderr, program, args...)
+}
+
+// RunInput streams definition data separately from command arguments.
+func (r Runner) RunInput(ctx context.Context, input io.Reader, stdout, stderr io.Writer, program string, args ...string) error {
 	var cmd *exec.Cmd
 	if r.host == "" {
 		cmd = exec.CommandContext(ctx, program, args...)
@@ -53,6 +58,7 @@ func (r Runner) Run(ctx context.Context, stdout, stderr io.Writer, program strin
 	if r.host == "" {
 		cmd.Env = append(cmd.Env, "LC_ALL=C")
 	}
+	cmd.Stdin = input
 	cmd.Stdout = stdout
 	cmd.Stderr = stderr
 	// A surviving SSH helper or toolstack subprocess may retain an output pipe.

@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -23,7 +24,19 @@ type VM struct {
 	ControlDomain bool
 }
 
+type bootSettings struct {
+	VCPUMax    json.Number `json:"VCPUs_max"`
+	Startup    json.Number `json:"VCPUs_at_startup"`
+	StaticMin  json.Number `json:"memory_static_min"`
+	StaticMax  json.Number `json:"memory_static_max"`
+	DynamicMin json.Number `json:"memory_dynamic_min"`
+	DynamicMax json.Number `json:"memory_dynamic_max"`
+}
+
 type vmRecord struct {
+	bootSettings
+	VBDs          []string    `json:"VBDs"`
+	VIFs          []string    `json:"VIFs"`
 	DomainID      json.Number `json:"domid"`
 	Metrics       string      `json:"metrics"`
 	UUID          string      `json:"uuid"`
@@ -53,6 +66,7 @@ func List(ctx context.Context, endpoint, username, password string, client *http
 }
 
 type Monitor struct {
+	mu                          sync.Mutex
 	rpc                         *rpcClient
 	username, password, session string
 	loginErr                    error
@@ -161,7 +175,12 @@ func (m *Monitor) logout() error {
 	return err
 }
 
-func (m *Monitor) Close() { _ = m.logout(); m.rpc.http.CloseIdleConnections() }
+func (m *Monitor) Close() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	_ = m.logout()
+	m.rpc.http.CloseIdleConnections()
+}
 
 // Each provider session owns one sequential RPC client.
 type rpcClient struct {
@@ -170,13 +189,13 @@ type rpcClient struct {
 	nextID   int
 }
 
-func (c *rpcClient) call(ctx context.Context, method string, params []string, result any, limit int64) error {
+func (c *rpcClient) call(ctx context.Context, method string, params any, result any, limit int64) error {
 	c.nextID++
 	body, err := json.Marshal(struct {
-		Version string   `json:"jsonrpc"`
-		ID      int      `json:"id"`
-		Method  string   `json:"method"`
-		Params  []string `json:"params"`
+		Version string `json:"jsonrpc"`
+		ID      int    `json:"id"`
+		Method  string `json:"method"`
+		Params  any    `json:"params"`
 	}{"2.0", c.nextID, method, params})
 	if err != nil {
 		return fmt.Errorf("%s: cannot encode request", method)

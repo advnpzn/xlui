@@ -21,7 +21,7 @@ import (
 	"github.com/advnpzn/xlui/internal/xen/xl"
 )
 
-const usage = "Usage: xlui [--host SSH_DESTINATION | --xapi HTTPS_URL --xapi-user USER [--xapi-ca PEM_FILE]] [--interval DURATION] [list]"
+const usage = "Usage: xlui [--host SSH_DESTINATION | --xapi HTTPS_URL --xapi-user USER [--xapi-ca PEM_FILE]] [--interval DURATION] [--read-only] [list]"
 
 type browserFunc func(context.Context, config.Profile, time.Duration, string, tui.OpenSource) error
 
@@ -56,6 +56,7 @@ func runWithBrowser(ctx context.Context, args []string, stdout, stderr io.Writer
 		fmt.Fprintln(stderr, usage)
 		flags.PrintDefaults()
 	}
+	readOnly := flags.Bool("read-only", false, "disable guest changes in all sessions")
 	host := flags.String("host", "", "OpenSSH destination (omit for local Dom0)")
 	interval := flags.Duration("interval", tui.DefaultInterval, "initial monitoring interval per session (minimum 100ms)")
 	endpoint := flags.String("xapi", "", "HTTPS URL of the XAPI pool coordinator")
@@ -66,6 +67,14 @@ func runWithBrowser(ctx context.Context, args []string, stdout, stderr io.Writer
 			return nil
 		}
 		return err
+	}
+	openSource := tui.OpenSource(openMonitor)
+	if *readOnly {
+		openSource = func(p config.Profile, pass string) (session.Source, error) {
+			source, err := openMonitor(p, pass)
+			source.Prepare = nil
+			return source, err
+		}
 	}
 	interactive := flags.NArg() == 0
 	if !interactive && (flags.NArg() != 1 || flags.Arg(0) != "list") {
@@ -101,7 +110,7 @@ func runWithBrowser(ctx context.Context, args []string, stdout, stderr io.Writer
 			if err := p.Validate(); err != nil {
 				return err
 			}
-			return openBrowser(ctx, p, *interval, os.Getenv("XLUI_XAPI_PASSWORD"), openMonitor)
+			return openBrowser(ctx, p, *interval, os.Getenv("XLUI_XAPI_PASSWORD"), openSource)
 		}
 		return listXAPI(ctx, *endpoint, *username, *caFile, stdout)
 	}
@@ -117,7 +126,7 @@ func runWithBrowser(ctx context.Context, args []string, stdout, stderr io.Writer
 		if *host != "" {
 			p = config.Profile{Name: *host, Type: config.SSH, Address: *host}
 		}
-		return openBrowser(ctx, p, *interval, "", openMonitor)
+		return openBrowser(ctx, p, *interval, "", openSource)
 	}
 	if err := xl.StreamInventory(ctx, runner, stdout, stderr); err != nil {
 		return fmt.Errorf("domain inventory: %w", err)
@@ -135,12 +144,12 @@ func openMonitor(p config.Profile, password string) (session.Source, error) {
 		if err != nil {
 			return session.Source{}, err
 		}
-		return session.Source{Read: m.Read, Close: m.Close}, nil
+		return session.Source{Read: m.Read, Close: m.Close, Prepare: m.Prepare}, nil
 	}
 	runner, err := transport.NewRunner(p.Address)
 	if err != nil {
 		return session.Source{}, err
 	}
 	runner.BatchMode = true
-	return session.Source{Read: func(ctx context.Context) ([]xen.Domain, error) { return xl.ReadMonitor(ctx, runner) }}, nil
+	return session.Source{Prepare: xl.GuestChanges(runner), Read: func(ctx context.Context) ([]xen.Domain, error) { return xl.ReadMonitor(ctx, runner) }}, nil
 }

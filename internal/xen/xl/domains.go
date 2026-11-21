@@ -67,7 +67,7 @@ func ReadDomains(ctx context.Context, runner Runner) ([]xen.Domain, error) {
 		}
 		seen[id] = struct{}{}
 		domains = append(domains, xen.Domain{
-			Name: fields[1], ID: id, MemoryMiB: mem, VCPUs: cpus,
+			ControlDomain: id == 0, Name: fields[1], ID: id, MemoryMiB: mem, VCPUs: cpus,
 			State: fields[5], CPUSeconds: seconds, UUID: strings.ToLower(fields[7]),
 		})
 	}

@@ -8,12 +8,15 @@ import (
 
 	"github.com/advnpzn/xlui/internal/config"
 	"github.com/advnpzn/xlui/internal/session"
+	"github.com/advnpzn/xlui/internal/xen"
 )
 
 // OpenSource prepares a provider. Network I/O belongs in the cancellable reader.
 type OpenSource func(config.Profile, string) (session.Source, error)
 
 type liveSession struct {
+	ctx     context.Context
+	prepare xen.Prepare
 	profile config.Profile
 	view    *browser
 	cancel  context.CancelFunc
@@ -25,24 +28,25 @@ type hostUpdate struct {
 }
 
 type workspace struct {
-	ctx      context.Context
-	cancel   context.CancelFunc
-	workers  sync.WaitGroup
-	initial  config.Profile
-	store    config.Store
-	interval time.Duration
-	open     OpenSource
-	live     map[config.Profile]*liveSession
-	order    []config.Profile
-	active   *liveSession
-	updates  chan hostUpdate
-	dialog   *connectionDialog
-	quit     bool
+	ctx          context.Context
+	cancel       context.CancelFunc
+	workers      sync.WaitGroup
+	initial      config.Profile
+	store        config.Store
+	interval     time.Duration
+	open         OpenSource
+	live         map[config.Profile]*liveSession
+	order        []config.Profile
+	active       *liveSession
+	updates      chan hostUpdate
+	guestResults chan guestResult
+	dialog       *connectionDialog
+	quit         bool
 }
 
 func newWorkspace(parent context.Context, initial config.Profile, interval time.Duration, open OpenSource, store config.Store) *workspace {
 	ctx, cancel := context.WithCancel(parent)
-	return &workspace{ctx: ctx, cancel: cancel, initial: initial, interval: interval, open: open, store: store, live: make(map[config.Profile]*liveSession), updates: make(chan hostUpdate)}
+	return &workspace{ctx: ctx, cancel: cancel, initial: initial, interval: interval, open: open, store: store, live: make(map[config.Profile]*liveSession), updates: make(chan hostUpdate), guestResults: make(chan guestResult)}
 }
 
 func (w *workspace) connect(p config.Profile, password string) {
@@ -69,10 +73,13 @@ func (w *workspace) connect(p config.Profile, password string) {
 		w.manager(err.Error())
 		return
 	}
-	h := &liveSession{profile: p, view: newBrowser(p.Name), cancel: cancel}
+	h := &liveSession{ctx: ctx, prepare: source.Prepare, profile: p, view: newBrowser(p.Name), cancel: cancel}
 	h.view.inventory = inv
 	h.view.sessions = func() { w.manager("") }
 	h.view.nextSession = w.next
+	if h.prepare != nil {
+		h.view.guests = func() { w.guestMenu(h) }
+	}
 	w.order = append(w.order, p)
 	w.live[p] = h
 	w.activate(h)

@@ -40,6 +40,9 @@ func (b *browser) drawFooter(screen tcell.Screen, width, y int) {
 			add("[Tab Next]", tcell.KeyTab, 0)
 		}
 	}
+	if b.edit == nil && b.guests != nil {
+		add("[g Guests]", tcell.KeyRune, 'g')
+	}
 	switch {
 	case b.edit != nil:
 		const apply, cancel = "[Enter Apply]", "[Esc Cancel]"
