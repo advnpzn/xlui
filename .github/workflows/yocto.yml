@@ -1,0 +1,42 @@
+name: Yocto layer
+on:
+  pull_request:
+    paths: ['packaging/yocto/**', '.github/workflows/yocto.yml']
+  push:
+    branches: [master]
+    paths: ['packaging/yocto/**', '.github/workflows/yocto.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  arm64:
+    name: Compile and stage the qemuarm64 recipe
+    runs-on: ubuntu-22.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: openembedded/openembedded-core
+          ref: 16a03ed6c2db2fa1d7edac4f288a74958a00eb9f
+          path: oe-core
+          persist-credentials: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: openembedded/bitbake
+          ref: 6e260eb6ab1631607ea414d9ff8ede1155faa5d9
+          path: oe-core/bitbake
+          persist-credentials: false
+      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5
+        with:
+          go-version: '1.26.10'
+          cache: false
+      - name: Install OpenEmbedded host tools and QEMU
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends chrpath cpio diffstat gawk lz4 qemu-user rpcsvc-proto socat zstd
+      - name: Build and exercise the staged client
+        run: bash packaging/yocto/verify-arm64.sh "$PWD/oe-core" "$PWD" "$RUNNER_TEMP/xlui-oe"
