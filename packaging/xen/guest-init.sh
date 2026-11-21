@@ -18,6 +18,7 @@ for attempt in 1 2 3 4 5; do
   sleep 1
 done
 xen-init-dom0
+xenconsoled --log guest --log-dir /var/log/xen
 /bin/busybox ip link set lo up
 /usr/sbin/sshd -f /etc/ssh/test_sshd_config
 echo XLUI-DOM0-READY

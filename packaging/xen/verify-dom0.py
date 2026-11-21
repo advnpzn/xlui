@@ -38,6 +38,10 @@ def control_domain(listing):
     raise RuntimeError(f"No control domain with a UUID in xl inventory:\n{listing}")
 
 
+LOCAL = "/usr/bin/xlui"
+SSH = "PATH=/run/workstation-bin /usr/bin/xlui --host dom0-test"
+
+
 def check_dom0(console):
     shell(console, "stty rows 32 cols 100 && export TERM=xterm-256color")
     shell(console, "grep -qw control_d /proc/xen/capabilities")
@@ -46,8 +50,7 @@ def check_dom0(console):
 
     # Model a workstation without xl. An SSH command routed locally must fail.
     shell(console, "mkdir -p /run/workstation-bin && ln -s /usr/bin/ssh /run/workstation-bin/ssh")
-    clients = ["/usr/bin/xlui", "PATH=/run/workstation-bin /usr/bin/xlui --host dom0-test"]
-    for client in clients:
+    for client in (LOCAL, SSH):
         print(f"Checking {client}", flush=True)
         observed = control_domain(shell(console, client + " list"))
         if observed != (name, uuid):
@@ -69,6 +72,72 @@ def check_dom0(console):
     return native
 
 
+def guest_action(console, client, key, menu_item, title, fields, preview):
+    send_line(console, client + " --interval 2s; printf '\\nxlui-exit=%d\\n' \"$?\"")
+    console.expect_exact("Domain-0")
+    console.send("g")
+    console.expect_exact(menu_item)
+    console.send(key)
+    console.expect_exact(title)
+    for field in fields:
+        console.send(field)
+    console.expect_exact("REVIEW GUEST CHANGE")
+    console.expect_exact(preview)
+    console.send("\t\r")
+    console.expect_exact("GUEST UPDATED", timeout=90)
+    console.send("\r")
+    console.expect_exact("xlui-lab")
+    console.send("q")
+    console.expect(r"(?:^|[\r\n])xlui-exit=0\r*\n")
+
+
+def guest_id(console, uuid, memory):
+    listing = shell(console, "xl list -v")
+    row = re.search(rf"^xlui-lab\s+([1-9]\d*)\s+{memory}\s+1\s+\S+\s+[\d.]+\s+{uuid}\s", listing, re.M)
+    if not row:
+        raise RuntimeError(f"Guest {uuid} with {memory} MiB and one vCPU missing from {listing}")
+    return int(row[1])
+
+
+def wait_for_linux(console):
+    shell(console, "i=0; until /bin/busybox grep -q XLUI-DISPOSABLE-GUEST-READY "
+          "/var/log/xen/guest-xlui-lab.log 2>/dev/null; do "
+          "i=$((i+1)); [ $i -lt 25 ] || break; sleep 1; done; [ $i -lt 25 ]")
+
+
+def check_guest_lifecycle(console):
+    config = "/etc/xen/xlui-lab.cfg"
+    shell(console, f"test ! -e {config} && ! xl domid xlui-lab >/dev/null 2>&1")
+    print("Creating a diskless Linux guest through the local TUI", flush=True)
+    guest_action(console, LOCAL, "c", "Create guest", "CREATE GUEST",
+                 ["xlui-lab\t", "/guest/Image\t", "/guest/initrd.gz\t", "\t", "\x15192\t", "\t\r"],
+                 "192")
+    original = shell(console, f"cat {config}")
+    identity = re.search(rf'^uuid = "({UUID})"$', original, re.M)
+    if not identity or "memory = 192" not in original.splitlines():
+        raise RuntimeError(f"Unexpected new definition: {original}")
+    uuid = identity[1]
+    first = guest_id(console, uuid, 192)
+    wait_for_linux(console)
+
+    print("Changing the saved boot memory over SSH", flush=True)
+    guest_action(console, SSH, "b", "Edit saved boot memory", "EDIT GUEST", ["xlui-lab\t", "224\t\r"], "224")
+    if shell(console, f"cat {config}") != original.replace("memory = 192", "memory = 224"):
+        raise RuntimeError("Unexpected change to the saved definition")
+    if guest_id(console, uuid, 192) != first:
+        raise RuntimeError("The running guest changed during the edit")
+
+    # This QEMU instance is private. Stop only the DomU we just created and checked.
+    shell(console, f"xl destroy {first}")
+    shell(console, "! xl domid xlui-lab >/dev/null 2>&1 && rm /var/log/xen/guest-xlui-lab.log")
+    print("Starting the saved definition over SSH", flush=True)
+    guest_action(console, SSH, "s", "Start from saved definition", "START FROM DEFINITION",
+                 ["xlui-lab\t", "\r"], uuid)
+    if guest_id(console, uuid, 224) == first:
+        raise RuntimeError("Expected a newly booted domain")
+    wait_for_linux(console)
+
+
 if __name__ == "__main__":
     with tempfile.TemporaryFile(mode="w+", encoding="utf-8") as log, pexpect.spawn(
         sys.argv[1], sys.argv[2:], encoding="utf-8", codec_errors="replace",
@@ -79,7 +148,8 @@ if __name__ == "__main__":
             console.expect_exact("XLUI-DOM0-READY", timeout=180)
             console.expect_exact("/ # ")
             print(check_dom0(console))
+            check_guest_lifecycle(console)
         except (pexpect.TIMEOUT, pexpect.EOF):
             log.seek(0)
             sys.exit(f"Serial check failed. Last console output: {log.read()[-3000:]!r}")
-    print("Verified live ARM64 Xen Dom0 inventory, inspector and vCPU placement over local xl and OpenSSH.")
+    print("Verified live ARM64 Xen Dom0 inventory, inspector and vCPU placement, and Linux guest creation, saved memory edits and restart.")

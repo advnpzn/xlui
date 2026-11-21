@@ -24,7 +24,9 @@ CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -o /tmp/xlui-arm64 ./cmd/xlui
 bash packaging/xen/boot-arm64.sh /tmp/xlui-arm64
 ```
 
-The script downloads Debian trixie ARM64 packages using isolated APT state and Debian archive signatures, then boots the packaged Xen hypervisor and Linux control domain under QEMU software emulation. It compares the Dom0 name and UUID from native `xl list -v` against xlui's local and SSH inventory, opens that domain's inspector and vCPU placement through each connection, and checks that the TUI exits cleanly. The guest has one domain, no network device, and a loopback OpenSSH server with a per-run pinned host key. The test uses 1200 MiB of emulated RAM and removes its temporary files on exit. Its coverage is read-only. The captured `list-v-debian-4.20-arm64.txt` inventory also runs in the ordinary Go tests.
+The script downloads Debian trixie ARM64 packages using isolated APT state and Debian archive signatures, then boots the packaged Xen hypervisor and Linux control domain under QEMU software emulation. It compares the Dom0 name and UUID from native `xl list -v` against xlui's local and SSH inventory, opens that domain's inspector and vCPU placement through each connection, and checks that the TUI exits cleanly. QEMU has no network device. SSH uses loopback and a per-run pinned host key.
+
+The test then creates a disposable Linux guest from the local TUI and edits its saved memory over SSH. It checks that the running allocation stays at 192 MiB, stops the identified test guest, and starts it again from the saved definition. A fresh guest console readiness marker, the original UUID, and a 224 MiB allocation confirm the second boot. The harness uses 1200 MiB of emulated RAM and removes its temporary files on exit. The captured `list-v-debian-4.20-arm64.txt` inventory also runs in the ordinary Go tests.
 
 ## Where to test a change
 
