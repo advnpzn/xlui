@@ -31,6 +31,8 @@ xlui --help
 
 If `~/.local/bin` is not already on your `PATH`, add the export line to your shell profile.
 
+For a Yocto-built image, add the `meta-xlui` layer and include `xlui` in the image. [Layer setup and build instructions](packaging/yocto/meta-xlui/README.md)
+
 ## Setup
 
 **Local Xen host.** Run xlui in Dom0 as an account that can run `xl list -v`. The TUI uses the same account to collect inventory.
