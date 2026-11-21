@@ -4,7 +4,20 @@ xlui is a **terminal user interface (TUI) for Xen**. Monitor multiple Xen hosts,
 
 ## Installation
 
-Open **Actions → Linux packages → Run workflow**, or select a build for a version tag. Download the `xlui-linux-<commit>` artifact and extract its ZIP. It contains static Linux binaries, DEB and RPM packages for amd64 and arm64, and `SHA256SUMS`. From the extracted directory, verify the files with `sha256sum -c SHA256SUMS`. Install the package for your machine with your distribution's package manager, or run `chmod +x xlui-linux-arm64` before using the standalone ARM binary. For x86-64 use `xlui-linux-amd64`.
+Open the release you want and download `SHA256SUMS` and one Linux file from **Assets** into an empty directory. Use `uname -m` to identify your architecture. [GitHub Releases](https://github.com/advnpzn/xlui/releases)
+
+| `uname -m` | Debian or Ubuntu | Fedora or RHEL | Standalone binary |
+| --- | --- | --- | --- |
+| `x86_64` | `*_amd64.deb` | `*.x86_64.rpm` | `xlui-linux-amd64` |
+| `aarch64` | `*_arm64.deb` | `*.aarch64.rpm` | `xlui-linux-arm64` |
+
+From that directory, run `sha256sum --check --ignore-missing SHA256SUMS`. Once your file reports `OK`, use the command for your download.
+
+| Download | Install |
+| --- | --- |
+| DEB | `sudo apt install ./xlui_*.deb` |
+| RPM | `sudo dnf install ./xlui-*.rpm` |
+| Standalone | `sudo install -m 0755 xlui-linux-* /usr/local/bin/xlui` |
 
 To install from source on Linux, use Git and Go 1.25.0 or newer. Use Git credentials with access to the repository.
 

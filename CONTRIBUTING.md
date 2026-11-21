@@ -31,6 +31,12 @@ Remove hostnames, guest identifiers, addresses, credentials and customer-specifi
 
 1. Prepare the change locally. Keep each commit focused on one user-visible behavior or one coherent internal change.
 2. Format touched Go files with `gofmt` and run the relevant checks. Use Conventional Commits, for example `feat(tui): filter domains by state` or `fix(xl): preserve unknown CPU readings`.
-3. Maintainers can apply a verified change directly to the current default branch. Launch the Go workflow manually from Actions when a full CI run is needed. Contributors using a fork or requesting review can open a pull request against that branch with a Conventional Commit title. Describe the operator-visible effect, verification and any changes to privileges, target identity or compatibility.
+3. Maintainers can apply a verified change directly to the current default branch. The Go workflow checks pull requests and default-branch pushes that change Go code, fixtures, dependencies or build automation. It can also run manually. Contributors using a fork or requesting review can open a pull request against that branch with a Conventional Commit title. Describe the operator-visible effect, verification and any changes to privileges, target identity or compatibility.
 
 For a bug report, include the command or keystrokes, expected and observed behavior, xlui revision, host toolstack version and connection mode. For a new operation, describe the operator's task and which host management stack owns it.
+
+## Release Linux packages
+
+Push a semantic version tag such as `v1.2.3` or `v1.2.3-rc.1` on the commit to release. **Linux packages** runs the Go checks first, builds twice, compares checksums and inspects the DEB and RPM payloads. It runs the x86-64 client natively and the ARM64 client under QEMU against an inventory fixture.
+
+The workflow attaches the six verified downloads and `SHA256SUMS` to a draft GitHub release, checks their uploaded digests, then publishes the release notes. Tags with a prerelease suffix publish as prereleases. Rerun a failed tag workflow to retry. To exercise the builds without publishing a release, run **Linux packages** manually on a branch.
