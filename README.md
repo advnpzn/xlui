@@ -2,7 +2,7 @@
 
 xlui is a read-only terminal browser for plain Xen hosts. Use it locally in Dom0 or connect from a Linux workstation over OpenSSH. It also provides headless VM inventory for XenAPI pools.
 
-Build with Go 1.22 or newer on Linux.
+Build on Linux with Go 1.25.0 or newer. Use the latest patched stable Go release for production builds, as CI does.
 
 ```sh
 go test ./...
