@@ -46,20 +46,13 @@ func (i *inspector) observe(s session.Snapshot) {
 		if keyOf(d) == i.key {
 			i.domain = d
 			pct, ok := s.CPUPercent(d)
-			i.rate = formatPercent(pct, ok)
+			i.rate = percent(pct, ok)
 			i.cpu.Push(pct, ok)
-			i.memory.Push(float64(d.MemoryMiB), s.Err == nil)
+			i.memory.Push(float64(d.MemoryMiB), s.Err == nil && d.MemoryMiB >= 0)
 			return
 		}
 	}
 	i.gone = true
-}
-
-func formatPercent(pct float64, available bool) string {
-	if !available {
-		return "--"
-	}
-	return fmt.Sprintf("%.1f", pct)
 }
 
 // Only rebuild the formatted text when a sample arrives or the terminal width changes.
@@ -75,8 +68,11 @@ func (i *inspector) render(width int) *tview.TextView {
 	d := i.domain
 	cpuLine, cpuScale := i.cpu.Plot(width, "%")
 	memLine, memScale := i.memory.Plot(width, "MiB")
-	i.view.SetText(fmt.Sprintf("%s\n\nUUID     %s\nID       %d\nState    %s\nMemory   %d MiB\nvCPUs    %d\nCPU %%    %s (100%% = one core)\nCPU time %.1f s\n\nCPU      %s\n%s\nMemory   %s\n%s\nLast %d samples while open | newest right | ? unavailable",
-		terminal.SingleLine(d.Name), terminal.SingleLine(d.UUID), d.ID, terminal.SingleLine(d.State), d.MemoryMiB, d.VCPUs,
-		i.rate, d.CPUSeconds, cpuScale, cpuLine, memScale, memLine, widgets.Window))
+	duration := "—"
+	if d.CPUSeconds >= 0 {
+		duration = fmt.Sprintf("%.1f s", d.CPUSeconds)
+	}
+	i.view.SetText(fmt.Sprintf("%s\n\nUUID       %s\nID         %s\nState      %s\nAllocated  %s\nGuest used %s\nvCPUs      %s\nCPU load   %s (100%% = one core)\nCPU time   %s\n\nCPU      %s\n%s\nMemory   %s\n%s\nLast %d samples while open | newest right | ? unavailable",
+		terminal.SingleLine(d.Name), terminal.SingleLine(d.UUID), number(d.ID), terminal.SingleLine(stateLabel(d.State)), memoryLabel(float64(d.MemoryMiB)), guestMemory(d), number(d.VCPUs), i.rate, duration, cpuScale, cpuLine, memScale, memLine, widgets.Window))
 	return i.view
 }

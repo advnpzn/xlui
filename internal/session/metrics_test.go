@@ -138,3 +138,14 @@ func BenchmarkCPUAfterRead256(b *testing.B) {
 		}
 	}
 }
+
+func TestProviderRateNeedsNoCounterAndDisappearsOnFailure(t *testing.T) {
+	now := time.Now()
+	value := 180.0
+	d := xen.Domain{ID: 3, UUID: "guest", VCPUs: 2, CPUSeconds: -1, CPUPercent: &value}
+	first := Snapshot{}.afterRead([]xen.Domain{d}, now, nil)
+	checkCPU(t, first, d, 180, true)
+	checkCPU(t, first.afterRead(nil, now.Add(time.Second), errors.New("offline")), d, 0, false)
+	d.CPUPercent = nil
+	checkCPU(t, first.afterRead([]xen.Domain{d}, now.Add(time.Second), nil), d, 0, false)
+}

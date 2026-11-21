@@ -9,7 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/advnpzn/xlui/internal/session"
+	"github.com/advnpzn/xlui/internal/config"
+	"github.com/advnpzn/xlui/internal/tui"
 )
 
 func TestBrowserRouting(t *testing.T) {
@@ -36,15 +37,20 @@ func TestBrowserRouting(t *testing.T) {
 				t.Fatal(err)
 			}
 			opened := false
-			browser := func(ctx context.Context, host string, interval time.Duration, read session.Reader) error {
+			browser := func(ctx context.Context, p config.Profile, interval time.Duration, pass string, open tui.OpenSource) error {
 				opened = true
 				if _, deadline := ctx.Deadline(); deadline {
 					t.Fatal("CLI set a deadline on the interactive session")
 				}
+				host := p.Name
 				if host != tc.host || interval != tc.interval {
 					t.Fatalf("host %q, interval %v", host, interval)
 				}
-				domains, err := read(ctx)
+				src, err := open(p, pass)
+				if err != nil {
+					t.Fatal(err)
+				}
+				domains, err := src.Read(ctx)
 				if err != nil || len(domains) != 1 || domains[0].Name != "worker" {
 					t.Fatalf("domains %v, err %v", domains, err)
 				}
@@ -65,7 +71,7 @@ func TestBrowserFlags(t *testing.T) {
 		{[]string{"--interval", "500ms"}, "at least 1s"},
 		{[]string{"--interval", "0s"}, "at least 1s"},
 		{[]string{"--interval", "5s", "list"}, "only to the interactive browser"},
-		{[]string{"--xapi", "https://pool"}, "--xapi-user USER list"},
+		{[]string{"--xapi", "https://pool"}, "--xapi-user"},
 		{[]string{"helpme"}, "Usage:"},
 	} {
 		err := run(context.Background(), tc.args, io.Discard, io.Discard)

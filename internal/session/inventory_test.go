@@ -40,3 +40,40 @@ func TestSlowConsumerKeepsTheLastGoodSnapshot(t *testing.T) {
 		t.Fatalf("lost last good observation on failure: %+v", s)
 	}
 }
+
+func TestCPULoadFromCounters(t *testing.T) {
+	now := time.Now()
+	base := xen.Domain{UUID: "a", ID: 1, CPUSeconds: 10, VCPUs: 4}
+	previous := Snapshot{}.afterRead([]xen.Domain{base}, now, nil)
+	for _, tc := range []struct {
+		name   string
+		change func(*xen.Domain)
+		failed bool
+		want   float64
+	}{
+		{"two busy vCPUs", func(d *xen.Domain) { d.CPUSeconds = 14 }, false, 200},
+		{"idle", func(d *xen.Domain) {}, false, 0},
+		{"reset", func(d *xen.Domain) { d.CPUSeconds = 1 }, false, -1},
+		{"reused ID", func(d *xen.Domain) { d.UUID = "b" }, false, -1},
+		{"vCPU hotplug", func(d *xen.Domain) { d.VCPUs++ }, false, -1},
+		{"collection gap", func(d *xen.Domain) {}, true, -1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			d := []xen.Domain{base}
+			tc.change(&d[0])
+			p := previous
+			if tc.failed {
+				p = p.afterRead(nil, now.Add(time.Second), errors.New("offline"))
+			}
+			sample := p.afterRead(d, now.Add(2*time.Second), nil)
+			got, valid := sample.CPUPercent(d[0])
+			if tc.want < 0 {
+				if valid {
+					t.Fatal("unexpected measurement")
+				}
+			} else if !valid || got != tc.want {
+				t.Fatalf("want %v, got %v", tc.want, got)
+			}
+		})
+	}
+}

@@ -84,3 +84,35 @@ func (s *Series) Plot(width int, unit string) (string, string) {
 func format(v float64) string {
 	return strings.TrimSuffix(strconv.FormatFloat(v, 'f', 1, 64), ".0")
 }
+
+// Bars draws a compact sparkline on a zero-to-peak scale. Missing samples
+// render as dots. Plot provides the explicit range for the expanded inspector.
+func (s *Series) Bars(width int) string {
+	n := min(width, s.count)
+	if n <= 0 {
+		return ""
+	}
+	start := (s.next - n + Window) % Window
+	peak := 0.0
+	for i := range n {
+		v := s.values[(start+i)%Window]
+		if !math.IsNaN(v) {
+			peak = max(peak, v)
+		}
+	}
+	levels := [...]rune{'▁', '▂', '▃', '▄', '▅', '▆', '▇', '█'}
+	var line strings.Builder
+	for i := range n {
+		v := s.values[(start+i)%Window]
+		if math.IsNaN(v) {
+			line.WriteRune('·')
+			continue
+		}
+		level := 0
+		if peak > 0 {
+			level = int(math.Round((v / peak) * 7))
+		}
+		line.WriteRune(levels[level])
+	}
+	return line.String()
+}

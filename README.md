@@ -1,6 +1,6 @@
 # xlui
 
-xlui is a **terminal user interface (TUI) for Xen** with keyboard and mouse controls. Browse a live domain list, filter guests and inspect their state, memory, vCPUs and CPU time. Run the TUI in Dom0 or connect to a Xen host over SSH from a Linux workstation.
+xlui is a **terminal user interface (TUI) for Xen**. Monitor multiple Xen hosts from one terminal, follow CPU and memory usage by domain, and switch between saved local, SSH and XenAPI connections with the keyboard or mouse.
 
 ## Installation
 
@@ -40,10 +40,39 @@ ssh -o BatchMode=yes -o StrictHostKeyChecking=yes bench xl list -v
 
 Run `xlui` to open the local domain list, or `xlui --host bench` to use the SSH alias above.
 
+### Connect more hosts
+
+Press **s** or click **Sessions**, then choose **Add connection**. Give the connection a name and choose how xlui should reach it.
+
+| Connection | What to enter |
+| --- | --- |
+| Local Dom0 | A name for the Xen host where xlui runs |
+| SSH | An OpenSSH alias or `user@host`. Configure keys, ports and jump hosts in `~/.ssh/config`. |
+| XenAPI | The HTTPS pool coordinator, username and optionally a private CA bundle. xlui prompts for a password when you connect. |
+
+Choose **Save + open** to start sampling, or **Save** to connect later. Press **Tab** on the dashboard to cycle through open sessions. Each session keeps sampling in the background and retains its own selection, filter and charts. Open a saved connection in **Sessions** to edit it or disconnect. After a restart, open the saved profiles you need.
+
+xlui writes profiles to `$XDG_CONFIG_HOME/xlui/config.json`, normally `~/.config/xlui/config.json`, with owner-only file permissions. Passwords stay in memory. To start directly on a pool, run `xlui --xapi https://pool.example --xapi-user viewer`.
+
+### Read the dashboard
+
+| Reading | Meaning |
+| --- | --- |
+| CPU load | 100% is one fully busy vCPU. A four-vCPU guest can reach 400%. Local and SSH sessions need two successful samples to calculate load. |
+| Allocated | The amount of memory Xen assigns to the domain. The summary adds the allocations of reporting domains. |
+| Guest used | On local and SSH connections, xlui reads total minus available memory in Dom0 and total minus reported free memory from each guest’s XenStore agent. XenAPI uses its RRD allocation and guest-free readings. |
+| History | The selected domain shows recent CPU and guest-used memory. The top charts show CPU and allocated memory for this session. Gaps indicate unavailable measurements. |
+
+A dash means the provider has no reading. Guest memory requires a reporting guest agent and permission to read its metrics. XenAPI lists VMs across the pool. CPU and guest memory charts cover the VM series served by the configured endpoint. [XenServer metrics documentation](https://docs.xenserver.com/us/en/xenserver/developer/sdk-guide/using-http.html)
+
+### Navigation
+
 Mouse controls are enabled automatically in terminals that support mouse reporting. The buttons at the bottom of the screen also show their keyboard shortcuts.
 
 | Action | Keyboard | Mouse |
 | --- | --- | --- |
+| Manage connections | `s` | Click **Sessions** |
+| Switch open sessions | Tab | Click **Next** |
 | Select a domain | ↑ / ↓ | Click its row |
 | Open the inspector | Enter | Double-click a row or click **Inspect** |
 | Scroll the list or inspector | ↑ / ↓ or Page Up / Page Down | Scroll the wheel over the list or inspector |
@@ -53,7 +82,7 @@ Mouse controls are enabled automatically in terminals that support mouse reporti
 | Clear the applied filter | Esc in the list | Click **Clear** |
 | Quit | `q` outside the filter editor, or Ctrl+C anywhere | Click **Quit** |
 
-The list refreshes five seconds after each collection. Use `xlui --host bench --interval 10s` to change the delay. If a refresh fails, **Stale** and a timestamp identify the last successful sample. The CPU column estimates utilization from successive CPU-time readings. One fully busy logical CPU is 100%, and a multi-vCPU guest can exceed 100%. A missing baseline, failed refresh or counter reset displays as `--`. Open a domain to see its cumulative CPU seconds and up to 60 samples of CPU and allocated memory. Charts start when the inspector opens and show gaps as `?`.
+The list refreshes five seconds after each collection. Use `xlui --host bench --interval 10s` to change the delay. If a refresh fails, **Stale** and a timestamp identify the last successful sample. Open the inspector to see cumulative CPU time where available and up to 60 samples of CPU and allocated memory. Inspector charts start when opened and mark gaps with `?`.
 
 ## Headless inventory
 

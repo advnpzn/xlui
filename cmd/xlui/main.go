@@ -11,18 +11,19 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/advnpzn/xlui/internal/config"
 	"github.com/advnpzn/xlui/internal/session"
 	"github.com/advnpzn/xlui/internal/terminal"
 	"github.com/advnpzn/xlui/internal/transport"
 	"github.com/advnpzn/xlui/internal/tui"
 	"github.com/advnpzn/xlui/internal/xen"
+	"github.com/advnpzn/xlui/internal/xen/xapi"
 	"github.com/advnpzn/xlui/internal/xen/xl"
 )
 
-const usage = "Usage: xlui [--host SSH_DESTINATION] [--interval DURATION]\n" +
-	"       xlui [--host SSH_DESTINATION | --xapi HTTPS_URL --xapi-user USER [--xapi-ca PEM_FILE]] list"
+const usage = "Usage: xlui [--host SSH_DESTINATION | --xapi HTTPS_URL --xapi-user USER [--xapi-ca PEM_FILE]] [--interval DURATION] [list]"
 
-type browserFunc func(context.Context, string, time.Duration, session.Reader) error
+type browserFunc func(context.Context, config.Profile, time.Duration, string, tui.OpenSource) error
 
 func main() {
 	os.Exit(command())
@@ -81,18 +82,26 @@ func runWithBrowser(ctx context.Context, args []string, stdout, stderr io.Writer
 		ctx, cancel = context.WithTimeout(ctx, 30*time.Second)
 		defer cancel()
 	}
+	if interactive && *interval < time.Second {
+		return errors.New("--interval must be at least 1s")
+	}
 	if supplied["xapi"] {
 		if supplied["host"] {
 			return errors.New("--host and --xapi are mutually exclusive")
 		}
-		if interactive {
-			return errors.New("interactive XAPI inventory is unavailable; use xlui --xapi HTTPS_URL --xapi-user USER list")
-		}
+
 		if *endpoint == "" || *username == "" {
 			return errors.New("--xapi requires an HTTPS endpoint and --xapi-user")
 		}
 		if supplied["xapi-ca"] && *caFile == "" {
 			return errors.New("--xapi-ca requires a PEM file")
+		}
+		if interactive {
+			p := config.Profile{Name: "XenAPI pool", Type: config.XAPI, Address: *endpoint, User: *username, CAFile: *caFile}
+			if err := p.Validate(); err != nil {
+				return err
+			}
+			return openBrowser(ctx, p, *interval, os.Getenv("XLUI_XAPI_PASSWORD"), openMonitor)
 		}
 		return listXAPI(ctx, *endpoint, *username, *caFile, stdout)
 	}
@@ -104,20 +113,34 @@ func runWithBrowser(ctx context.Context, args []string, stdout, stderr io.Writer
 		return err
 	}
 	if interactive {
-		if *interval < time.Second {
-			return errors.New("--interval must be at least 1s")
+		p := config.Profile{Name: "local Dom0", Type: config.Local}
+		if *host != "" {
+			p = config.Profile{Name: *host, Type: config.SSH, Address: *host}
 		}
-		runner.BatchMode = true
-		label := *host
-		if label == "" {
-			label = "local Dom0"
-		}
-		return openBrowser(ctx, label, *interval, func(ctx context.Context) ([]xen.Domain, error) {
-			return xl.ReadDomains(ctx, runner)
-		})
+		return openBrowser(ctx, p, *interval, "", openMonitor)
 	}
 	if err := xl.StreamInventory(ctx, runner, stdout, stderr); err != nil {
 		return fmt.Errorf("domain inventory: %w", err)
 	}
 	return nil
+}
+
+func openMonitor(p config.Profile, password string) (session.Source, error) {
+	if p.Type == config.XAPI {
+		client, err := xapiClient(p.CAFile)
+		if err != nil {
+			return session.Source{}, err
+		}
+		m, err := xapi.NewMonitor(p.Address, p.User, password, client)
+		if err != nil {
+			return session.Source{}, err
+		}
+		return session.Source{Read: m.Read, Close: m.Close}, nil
+	}
+	runner, err := transport.NewRunner(p.Address)
+	if err != nil {
+		return session.Source{}, err
+	}
+	runner.BatchMode = true
+	return session.Source{Read: func(ctx context.Context) ([]xen.Domain, error) { return xl.ReadMonitor(ctx, runner) }}, nil
 }

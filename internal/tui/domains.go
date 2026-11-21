@@ -1,7 +1,6 @@
 package tui
 
 import (
-	"strconv"
 	"strings"
 	"time"
 
@@ -12,27 +11,27 @@ import (
 	"github.com/rivo/tview"
 )
 
-type domainKey struct {
-	uuid string
-	id   int
-}
+type domainKey = xen.Identity
 
-func keyOf(d xen.Domain) domainKey { return domainKey{d.UUID, d.ID} }
+func keyOf(d xen.Domain) domainKey { return d.Identity() }
 
 type browser struct {
-	host      string
-	rows      domainRows
-	table     *tview.Table
-	filter    *tview.InputField
-	header    *tview.TextView
-	footer    *tview.TextView
-	buttons   []footerButton
-	pointer   pointerState
-	message   *tview.TextView
-	inspect   *inspector
-	edit      *filterEdit
-	latest    time.Time
-	lastError error
+	stats                 dashboard
+	openCount             int
+	sessions, nextSession func()
+	host                  string
+	rows                  domainRows
+	table                 *tview.Table
+	filter                *tview.InputField
+	header                *tview.TextView
+	footer                *tview.TextView
+	buttons               []footerButton
+	pointer               pointerState
+	message               *tview.TextView
+	inspect               *inspector
+	edit                  *filterEdit
+	latest                time.Time
+	lastError             error
 }
 
 // Escape restores the filter and selection from the start of this edit.
@@ -43,14 +42,17 @@ type filterEdit struct {
 
 func newBrowser(host string) *browser {
 	b := &browser{
-		host:    terminal.SingleLine(host),
+		host: terminal.SingleLine(host), openCount: 1,
 		table:   tview.NewTable().SetFixed(1, 0),
 		filter:  tview.NewInputField().SetLabel("Filter  "),
 		header:  tview.NewTextView().SetWrap(false),
 		footer:  tview.NewTextView().SetWrap(false),
 		message: tview.NewTextView().SetWordWrap(true).ScrollToBeginning(),
 	}
-	b.table.SetContent(&b.rows)
+	b.table.SetContent(&b.rows).SetSelectedStyle(tcell.StyleDefault.Background(tcell.NewHexColor(0x1e5361)).Foreground(tcell.ColorWhite).Bold(true))
+	b.table.SetBackgroundColor(surface)
+	b.footer.SetBackgroundColor(surface)
+	b.footer.SetTextColor(aqua)
 	b.filter.SetChangedFunc(func(string) {
 		key, _ := b.selected()
 		b.project(key, false)
@@ -67,6 +69,12 @@ func (b *browser) selected() (domainKey, bool) {
 }
 
 func (b *browser) update(s session.Snapshot) {
+	if last := b.rows.Sequence; last > 0 && s.Sequence > last && s.Sequence-last > 1 {
+		b.stats.skip(s.Sequence - last - 1)
+	}
+	if s.Err != nil {
+		b.stats.skip(1)
+	}
 	b.lastError = s.Err
 	selected, _ := b.selected()
 	b.rows.Snapshot = s
@@ -77,6 +85,7 @@ func (b *browser) update(s session.Snapshot) {
 		return
 	}
 	initial := b.latest.IsZero()
+	b.stats.sample(s)
 	b.latest = s.ObservedAt
 	b.project(selected, initial)
 }
@@ -87,8 +96,8 @@ func (b *browser) project(selected domainKey, initial bool) {
 	row := 0
 	for i, d := range b.rows.Domains {
 		if query != "" && !strings.Contains(strings.ToLower(d.Name), query) &&
-			!strings.Contains(strings.ToLower(d.State), query) &&
-			!strings.Contains(strings.ToLower(d.UUID), query) && !strings.Contains(strconv.Itoa(d.ID), query) {
+			!strings.Contains(strings.ToLower(d.State), query) && !strings.Contains(strings.ToLower(stateLabel(d.State)), query) &&
+			!strings.Contains(strings.ToLower(d.UUID), query) && !strings.Contains(number(d.ID), query) {
 			continue
 		}
 		visible = append(visible, i)
@@ -123,6 +132,14 @@ func (b *browser) key(ev *tcell.EventKey) bool {
 		default:
 			b.filter.InputHandler()(ev, nil)
 		}
+		return false
+	}
+	if ev.Key() == tcell.KeyTab && b.nextSession != nil {
+		b.nextSession()
+		return false
+	}
+	if ev.Key() == tcell.KeyRune && ev.Rune() == 's' && b.sessions != nil {
+		b.sessions()
 		return false
 	}
 	if ev.Key() == tcell.KeyRune && ev.Rune() == 'q' {

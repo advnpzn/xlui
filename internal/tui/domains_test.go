@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/advnpzn/xlui/internal/config"
 	"github.com/advnpzn/xlui/internal/session"
 	"github.com/advnpzn/xlui/internal/xen"
 	"github.com/gdamore/tcell/v2"
@@ -64,11 +65,13 @@ func TestQuitCancelsInFlightRead(t *testing.T) {
 	started := make(chan struct{})
 	done := make(chan error, 1)
 	go func() {
-		done <- runScreen(ctx, screen, "bench", time.Minute, func(ctx context.Context) ([]xen.Domain, error) {
-			close(started)
-			<-ctx.Done()
-			return nil, ctx.Err()
-		})
+		done <- runScreen(ctx, screen, config.Profile{Name: "bench", Type: config.Local}, time.Minute, "", func(config.Profile, string) (session.Source, error) {
+			return session.Source{Read: func(ctx context.Context) ([]xen.Domain, error) {
+				close(started)
+				<-ctx.Done()
+				return nil, ctx.Err()
+			}}, nil
+		}, config.Store{Path: t.TempDir() + "/config.json"})
 	}()
 	select {
 	case <-started:
@@ -152,17 +155,17 @@ func TestTableDistinguishesIdleCPUFromUnknown(t *testing.T) {
 		select {
 		case snap := <-stream.Updates():
 			ui.update(snap)
-			return ui.rows.GetCell(1, len(columns)-1).Text
+			return ui.rows.GetCell(1, 4).Text
 		case <-time.After(3 * time.Second):
 			t.Fatal("missing inventory sample")
 		}
 		return ""
 	}
-	if got := readCPU(); got != "--" {
+	if got := readCPU(); got != "—" {
 		t.Fatalf("first CPU reading %q", got)
 	}
 	input <- []xen.Domain{d}
-	if got := readCPU(); got != "0.0" {
+	if got := readCPU(); got != "0.0%" {
 		t.Fatalf("idle CPU reading %q", got)
 	}
 }

@@ -1,79 +1,92 @@
-// Package tui provides the interactive domain browser.
+// Package tui provides the interactive Xen dashboard.
 package tui
 
 import (
 	"context"
 	"time"
 
-	"github.com/advnpzn/xlui/internal/session"
+	"github.com/advnpzn/xlui/internal/config"
 	"github.com/gdamore/tcell/v2"
 )
 
-// Run displays a read-only browser until the user quits or the context is cancelled.
-// read must honor cancellation. It is called by a single background sampler.
-func Run(ctx context.Context, hostLabel string, interval time.Duration, read session.Reader) error {
+func Run(ctx context.Context, initial config.Profile, interval time.Duration, password string, open OpenSource) error {
+	store, err := config.UserStore()
+	if err != nil {
+		return err
+	}
 	screen, err := tcell.NewScreen()
 	if err != nil {
 		return err
 	}
-	if err := screen.Init(); err != nil {
+	if err = screen.Init(); err != nil {
 		return err
 	}
 	defer screen.Fini()
-	return runScreen(ctx, screen, hostLabel, interval, read)
+	return runScreen(ctx, screen, initial, interval, password, open, store)
 }
 
-func runScreen(ctx context.Context, screen tcell.Screen, host string, interval time.Duration, read session.Reader) error {
-	inventory, err := session.WatchInventory(ctx, interval, read)
-	if err != nil {
-		return err
-	}
-	defer inventory.Close()
+func runScreen(ctx context.Context, screen tcell.Screen, initial config.Profile, interval time.Duration, password string, open OpenSource, store config.Store) error {
+	w := newWorkspace(ctx, initial, interval, open, store)
+	defer w.close()
+	w.connect(initial, password)
 	screen.EnableMouse(tcell.MouseButtonEvents)
 	defer screen.DisableMouse()
-
 	events := make(chan tcell.Event)
 	quitEvents := make(chan struct{})
 	go screen.ChannelEvents(events, quitEvents)
 	defer func() {
 		close(quitEvents)
 		for range events {
-			// ChannelEvents closes events when it has stopped using the screen.
 		}
 	}()
-
-	b := newBrowser(host)
-	for {
-		b.draw(screen)
+	for !w.quit {
+		if d := w.dialog; d != nil {
+			d.draw(screen)
+		} else if w.active != nil {
+			w.active.view.openCount = len(w.live)
+			w.active.view.draw(screen)
+		}
 		select {
 		case <-ctx.Done():
 			return nil
-		case next, ok := <-inventory.Updates():
+		case update := <-w.updates:
+			if w.live[update.host.profile] == update.host {
+				update.host.view.update(update.snapshot)
+			}
+		case ev, ok := <-events:
 			if !ok {
 				return nil
 			}
-			b.update(next)
-		case event, ok := <-events:
-			if !ok {
-				return nil
-			}
-			switch event := event.(type) {
+			switch e := ev.(type) {
 			case *tcell.EventKey:
-				b.pointer = pointerState{}
-				if b.key(event) {
+				if e.Key() == tcell.KeyCtrlC {
 					return nil
+				}
+				if d := w.dialog; d != nil {
+					d.key(e)
+				} else if w.active != nil {
+					w.active.view.pointer = pointerState{}
+					w.quit = w.active.view.key(e)
 				}
 			case *tcell.EventMouse:
-				w, h := screen.Size()
-				if b.mouse(event, w, h) {
-					return nil
+				if d := w.dialog; d != nil {
+					d.mouse(e)
+				} else if w.active != nil {
+					x, y := screen.Size()
+					w.quit = w.active.view.mouse(e, x, y)
 				}
 			case *tcell.EventResize:
-				b.pointer = pointerState{}
+				if w.active != nil {
+					w.active.view.pointer = pointerState{}
+				}
+				if w.dialog != nil {
+					w.dialog.down = false
+				}
 				screen.Clear()
 			case *tcell.EventError:
-				return event
+				return e
 			}
 		}
 	}
+	return nil
 }

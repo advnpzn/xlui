@@ -17,7 +17,7 @@ type Snapshot struct {
 	Domains    []xen.Domain
 	ObservedAt time.Time
 	Err        error
-	cpu        map[domainInstance]cpuSample
+	cpu        map[xen.Identity]cpuSample
 }
 
 // Reader returns a fresh slice that it will not subsequently modify.
@@ -77,4 +77,9 @@ func (i *Inventory) poll(ctx context.Context, interval time.Duration, read Reade
 		i.updates <- latest
 		timer.Reset(interval)
 	}
+}
+
+type Source struct {
+	Read  Reader
+	Close func()
 }

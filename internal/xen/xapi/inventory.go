@@ -24,17 +24,65 @@ type VM struct {
 }
 
 type vmRecord struct {
-	UUID          string  `json:"uuid"`
-	Name          *string `json:"name_label"`
-	PowerState    string  `json:"power_state"`
-	ControlDomain *bool   `json:"is_control_domain"`
-	Template      *bool   `json:"is_a_template"`
-	Snapshot      *bool   `json:"is_a_snapshot"`
+	DomainID      json.Number `json:"domid"`
+	Metrics       string      `json:"metrics"`
+	UUID          string      `json:"uuid"`
+	Name          *string     `json:"name_label"`
+	PowerState    string      `json:"power_state"`
+	ControlDomain *bool       `json:"is_control_domain"`
+	Template      *bool       `json:"is_a_template"`
+	Snapshot      *bool       `json:"is_a_snapshot"`
 }
 
 // List retrieves pool-wide VM records in one call and closes its session.
 // Pass a client with a custom TLS transport to trust a private pool CA.
 func List(ctx context.Context, endpoint, username, password string, client *http.Client) ([]VM, error) {
+	m, err := NewMonitor(endpoint, username, password, client)
+	if err != nil {
+		return nil, err
+	}
+	records, err := m.records(ctx)
+	if err = errors.Join(err, m.logout()); err != nil {
+		return nil, err
+	}
+	vms := make([]VM, 0, len(records))
+	for _, r := range records {
+		vms = append(vms, VM{r.UUID, *r.Name, r.PowerState, *r.ControlDomain})
+	}
+	return vms, nil
+}
+
+type Monitor struct {
+	rpc                         *rpcClient
+	username, password, session string
+	loginErr                    error
+}
+
+func NewMonitor(endpoint, username, password string, client *http.Client) (*Monitor, error) {
+	address, err := ParseEndpoint(endpoint)
+	if err != nil {
+		return nil, err
+	}
+	if client == nil {
+		client = http.DefaultClient
+	}
+	timeout := client.Timeout
+	if timeout <= 0 || timeout > 30*time.Second {
+		timeout = 30 * time.Second
+	}
+	rpc := &rpcClient{endpoint: address.String(), http: &http.Client{
+		Transport: client.Transport,
+		Timeout:   timeout,
+		CheckRedirect: func(_ *http.Request, _ []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}}
+
+	return &Monitor{rpc: rpc, username: username, password: password}, nil
+}
+
+// ParseEndpoint checks the authority and fixes the path used for JSON-RPC.
+func ParseEndpoint(endpoint string) (*url.URL, error) {
 	address, err := url.Parse(endpoint)
 	if err != nil || address.Scheme != "https" || address.Hostname() == "" || address.User != nil ||
 		address.RawQuery != "" || address.ForceQuery || strings.Contains(endpoint, "#") {
@@ -46,61 +94,76 @@ func List(ctx context.Context, endpoint, username, password string, client *http
 	default:
 		return nil, errors.New("XAPI endpoint path must be /jsonrpc")
 	}
-	if client == nil {
-		client = http.DefaultClient
-	}
-	timeout := client.Timeout
-	if timeout <= 0 || timeout > 30*time.Second {
-		timeout = 30 * time.Second
-	}
-	rpc := rpcClient{endpoint: address.String(), http: &http.Client{
-		Transport: client.Transport,
-		Timeout:   timeout,
-		CheckRedirect: func(_ *http.Request, _ []*http.Request) error {
-			return http.ErrUseLastResponse
-		},
-	}}
+	return address, nil
+}
 
-	var session string
-	const sessionLimit = 64 << 10
-	if err := rpc.call(ctx, "session.login_with_password", []string{username, password, "1.0", "xlui"}, &session, sessionLimit); err != nil {
-		return nil, err
-	}
-	if session == "" || session == "OpaqueRef:NULL" {
-		return nil, errors.New("XAPI login returned an empty session reference")
-	}
+const sessionLimit = 64 << 10
+const inventoryLimit = 32 << 20
 
+var errInvalidSession = errors.New("SESSION_INVALID")
+var errDenied = errors.New("XAPI authentication or authorization denied")
+
+func (m *Monitor) records(ctx context.Context) (map[string]vmRecord, error) {
+	if m.loginErr != nil {
+		return nil, m.loginErr
+	}
+	if m.session == "" {
+		var token string
+		err := m.rpc.call(ctx, "session.login_with_password", []string{m.username, m.password, "1.0", "xlui"}, &token, sessionLimit)
+		if err != nil {
+			if errors.Is(err, errDenied) {
+				m.loginErr = err
+			}
+			return nil, err
+		}
+		if token == "" || token == "OpaqueRef:NULL" {
+			return nil, errors.New("XAPI login returned an empty session reference")
+		}
+		m.session = token
+	}
 	var records map[string]vmRecord
-	params := []string{session}
-	const inventoryLimit = 32 << 20
-	inventoryErr := rpc.call(ctx, "VM.get_all_records", params, &records, inventoryLimit)
-	// Try to release the server-side session even after the original deadline.
-	cleanup, cancel := context.WithTimeout(context.WithoutCancel(ctx), 3*time.Second)
-	defer cancel()
-	logoutErr := rpc.call(cleanup, "session.logout", params, nil, sessionLimit)
-	if err := errors.Join(inventoryErr, logoutErr); err != nil {
+	err := m.rpc.call(ctx, "VM.get_all_records", []string{m.session}, &records, inventoryLimit)
+	if err != nil {
 		return nil, err
 	}
 	if records == nil {
 		return nil, errors.New("XAPI returned a null VM inventory")
 	}
-	vms := make([]VM, 0, len(records))
-	for _, r := range records {
+	seen := make(map[string]bool, len(records))
+	for ref, r := range records {
 		if r.Template == nil || r.Snapshot == nil {
 			return nil, errors.New("XAPI VM record lacks template or snapshot status")
 		}
 		if *r.Template || *r.Snapshot {
+			delete(records, ref)
 			continue
 		}
 		if r.UUID == "" || r.Name == nil || r.PowerState == "" || r.ControlDomain == nil {
 			return nil, errors.New("XAPI VM record lacks an inventory field")
 		}
-		vms = append(vms, VM{UUID: r.UUID, Name: *r.Name, PowerState: r.PowerState, ControlDomain: *r.ControlDomain})
+		uuid := strings.ToLower(r.UUID)
+		if seen[uuid] {
+			return nil, errors.New("XAPI inventory has a duplicate VM identity")
+		}
+		seen[uuid] = true
 	}
-	return vms, nil
+	return records, nil
 }
 
-// Each List invocation owns one sequential RPC client.
+func (m *Monitor) logout() error {
+	if m.session == "" {
+		return nil
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	err := m.rpc.call(ctx, "session.logout", []string{m.session}, nil, sessionLimit)
+	m.session = ""
+	return err
+}
+
+func (m *Monitor) Close() { _ = m.logout(); m.rpc.http.CloseIdleConnections() }
+
+// Each provider session owns one sequential RPC client.
 type rpcClient struct {
 	endpoint string
 	http     *http.Client
@@ -137,6 +200,9 @@ func (c *rpcClient) call(ctx context.Context, method string, params []string, re
 		return fmt.Errorf("%s: failed to reach XAPI endpoint", method)
 	}
 	defer resp.Body.Close()
+	if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden {
+		return fmt.Errorf("%s: HTTP %d: %w", method, resp.StatusCode, errDenied)
+	}
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("%s: XAPI returned HTTP %d", method, resp.StatusCode)
 	}
@@ -172,8 +238,11 @@ func (c *rpcClient) call(ctx context.Context, method string, params []string, re
 		switch failure.Message {
 		case "HOST_IS_SLAVE":
 			return fmt.Errorf("%s: HOST_IS_SLAVE (connect to the pool coordinator)", method)
-		case "SESSION_AUTHENTICATION_FAILED", "SESSION_AUTHORIZATION_FAILED", "SESSION_INVALID",
-			"RBAC_PERMISSION_DENIED", "MESSAGE_METHOD_UNKNOWN", "MESSAGE_PARAMETER_COUNT_MISMATCH":
+		case "SESSION_INVALID":
+			return fmt.Errorf("%s: %w", method, errInvalidSession)
+		case "SESSION_AUTHENTICATION_FAILED", "SESSION_AUTHORIZATION_FAILED":
+			return fmt.Errorf("%s: %s: %w", method, failure.Message, errDenied)
+		case "RBAC_PERMISSION_DENIED", "MESSAGE_METHOD_UNKNOWN", "MESSAGE_PARAMETER_COUNT_MISMATCH":
 			return fmt.Errorf("%s: %s", method, failure.Message)
 		default:
 			return fmt.Errorf("%s: XAPI error %d", method, *failure.Code)

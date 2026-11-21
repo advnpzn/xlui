@@ -34,6 +34,12 @@ func (b *browser) drawFooter(screen tcell.Screen, width, y int) {
 		line.WriteString("  ")
 	}
 
+	if b.edit == nil && b.sessions != nil {
+		add("[s Sessions]", tcell.KeyRune, 's')
+		if b.openCount > 1 {
+			add("[Tab Next]", tcell.KeyTab, 0)
+		}
+	}
 	switch {
 	case b.edit != nil:
 		const apply, cancel = "[Enter Apply]", "[Esc Cancel]"

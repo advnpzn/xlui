@@ -2,7 +2,7 @@
 
 The terminal client has three responsibilities. Widgets handle reusable terminal interactions. Screens give those interactions meaning for a Xen operator. A host session supplies observations and executes typed requests. These are internal packages in the xlui Go module. The headless interface and a future managed API can use the same session with no terminal dependencies.
 
-The current browser implements plain-Xen inventory, filtering, configurable sampling, per-domain CPU utilization, and CPU and memory charts in the inspector. It uses tview widgets on a single tcell event loop. The remainder describes the target design, including on-demand device inspection, settings and actions.
+The dashboard draws per-domain measurements, bounded local histories, filters and an inspector. The connections screen reads and saves profiles. Its workspace owns one independently cancellable sampler and browser per open connection. A single tcell event loop draws the active view and routes incoming samples by session instance. The design below also covers planned device inspection and management actions.
 
 ## Where code belongs
 
@@ -52,7 +52,7 @@ The subscriber receives the latest snapshot immediately when available. Each sna
 
 - **Widgets** own cursor position, scrolling and focus. **Screens** own filter text, sort order, the selected domain reference and navigation state. **The session** owns host identity, capabilities, observations and pending operations. Selection and action targets use host-scoped instance evidence. Names, row indices and domids alone are insufficient.
 - Keep the terminal event loop free of collection, SSH and filesystem I/O. Background work publishes immutable data. The tcell event loop consumes updates and draws tview widgets on one goroutine. A slow terminal can skip an intermediate frame. Render host-supplied text as literal content.
-- Scope a detail request to the active inspector. Switching host cancels the previous subscription and detail reads, drops old frames and invalidates unconfirmed action plans. After a write was dispatched, leaving the screen or losing the connection cannot prove it failed. Preserve the operation's last known status and reconcile before reporting success or retrying.
+- Scope a detail request to the active inspector. Switching host preserves its background sampler and view. Disconnecting cancels the sampler and drops late frames. Switching targets should cancel pending detail reads and invalidate unconfirmed action plans. After a write was dispatched, leaving the screen or losing the connection cannot prove it failed. Preserve the operation's last known status and reconcile before reporting success or retrying.
 
 ## Tests at each boundary
 

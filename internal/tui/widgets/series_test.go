@@ -49,3 +49,16 @@ func TestSubTenthJitterStaysFlatAtLabelPrecision(t *testing.T) {
 		t.Fatalf("jitter shown as %q with scale %q", line, scale)
 	}
 }
+
+func TestDashboardBarsShowZeroPeakAndGaps(t *testing.T) {
+	var s Series
+	s.Push(0, true)
+	s.Skip(1)
+	s.Push(100, true)
+	if got := s.Bars(3); got != "▁·█" {
+		t.Fatalf("bars %q", got)
+	}
+	if got := s.Bars(1); got != "█" {
+		t.Fatalf("latest visible value %q", got)
+	}
+}

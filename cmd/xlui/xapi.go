@@ -13,6 +13,7 @@ import (
 	"strconv"
 	"text/tabwriter"
 
+	"github.com/advnpzn/xlui/internal/config"
 	"github.com/advnpzn/xlui/internal/xen/xapi"
 )
 
@@ -21,23 +22,10 @@ func listXAPI(ctx context.Context, endpoint, username, caFile string, stdout io.
 	if password == "" {
 		return errors.New("set XLUI_XAPI_PASSWORD for XAPI authentication")
 	}
-	transport := http.DefaultTransport.(*http.Transport).Clone()
-	if caFile != "" {
-		pem, err := os.ReadFile(caFile)
-		if err != nil {
-			return fmt.Errorf("read XAPI CA file: %w", err)
-		}
-		roots, err := x509.SystemCertPool()
-		if err != nil {
-			// An embedded client can have only the explicitly supplied CA bundle.
-			roots = x509.NewCertPool()
-		}
-		if !roots.AppendCertsFromPEM(pem) {
-			return errors.New("XAPI CA file contains no valid certificates")
-		}
-		transport.TLSClientConfig = &tls.Config{RootCAs: roots, MinVersion: tls.VersionTLS12}
+	client, err := xapiClient(caFile)
+	if err != nil {
+		return err
 	}
-	client := &http.Client{Transport: transport}
 	defer client.CloseIdleConnections()
 	vms, err := xapi.List(ctx, endpoint, username, password, client)
 	if err != nil {
@@ -69,4 +57,24 @@ func writeXAPIInventory(stdout io.Writer, vms []xapi.VM) error {
 func terminalCell(s string) string {
 	quoted := strconv.Quote(s)
 	return quoted[1 : len(quoted)-1]
+}
+
+func xapiClient(caFile string) (*http.Client, error) {
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	if caFile != "" {
+		pem, err := config.ReadFile(caFile, 4<<20)
+		if err != nil {
+			return nil, fmt.Errorf("read XAPI CA file: %w", err)
+		}
+		roots, err := x509.SystemCertPool()
+		if err != nil {
+			// An embedded client can have only the explicitly supplied CA bundle.
+			roots = x509.NewCertPool()
+		}
+		if !roots.AppendCertsFromPEM(pem) {
+			return nil, errors.New("XAPI CA file contains no valid certificates")
+		}
+		transport.TLSClientConfig = &tls.Config{RootCAs: roots, MinVersion: tls.VersionTLS12}
+	}
+	return &http.Client{Transport: transport}, nil
 }

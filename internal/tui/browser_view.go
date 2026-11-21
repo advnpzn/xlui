@@ -23,6 +23,10 @@ func (b *browser) drawHeader(screen tcell.Screen, width int) {
 	if b.lastError != nil && !b.latest.IsZero() {
 		title += " | " + terminal.SingleLine(b.lastError.Error())
 	}
+	if width >= 68 {
+		title = "  XLUI   /   " + title
+	}
+	b.header.SetBackgroundColor(surface)
 	b.header.SetTextColor(color).SetText(title)
 	b.header.SetRect(0, 0, width, 1)
 	b.header.Draw(screen)
@@ -31,7 +35,11 @@ func (b *browser) drawHeader(screen tcell.Screen, width int) {
 func (b *browser) emptyMessage() string {
 	switch {
 	case b.latest.IsZero() && b.lastError != nil:
-		return "Inventory unavailable\n" + terminal.SingleLine(b.lastError.Error()) + "\nRetrying automatically."
+		hint := "Retrying automatically."
+		if b.sessions != nil {
+			hint = "Press s to manage connections."
+		}
+		return "Inventory unavailable\n" + terminal.SingleLine(b.lastError.Error()) + "\n" + hint
 	case b.latest.IsZero():
 		return "Waiting for the first inventory sample."
 	case len(b.rows.Domains) == 0:
@@ -48,6 +56,7 @@ func (b *browser) draw(screen tcell.Screen) {
 	if width < 1 || height < 1 {
 		return
 	}
+	b.rows.meters = width >= 92
 	screen.HideCursor()
 	b.drawHeader(screen, width)
 	if height == 1 {
@@ -61,7 +70,21 @@ func (b *browser) draw(screen tcell.Screen) {
 		content = b.message.SetText(b.emptyMessage())
 	}
 	if height > 2 {
-		content.SetRect(0, 1, width, height-2)
+		if width >= 68 && height >= 17 {
+			b.drawSummary(screen, width)
+			bottom := height - 1
+			title := "DOMAINS"
+			if b.inspect == nil {
+				bottom -= 5
+				b.drawSelected(screen, width, bottom)
+			} else {
+				title = "DOMAIN INSPECTOR"
+			}
+			panel(screen, 0, 6, width, bottom-6, title, aqua)
+			content.SetRect(1, 7, width-2, bottom-8)
+		} else {
+			content.SetRect(0, 1, width, height-2)
+		}
 		content.Draw(screen)
 	}
 	b.drawFooter(screen, width, height-1)

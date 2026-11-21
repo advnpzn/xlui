@@ -6,7 +6,7 @@ xlui has one Go module and one operator executable. A Linux workstation connecte
 
 `cmd/xlui` selects the provider. Plain-Xen inventory uses `internal/transport` to execute `xl list -v` locally or through OpenSSH. The headless command streams the result. The interactive client parses it into `xen.Domain` observations. A cancellable sampler in `internal/session` delivers them to `internal/tui`, which owns the tcell event loop and tview components. Filtering and opening the inventory inspector use the latest snapshot.
 
-An explicit `--xapi` connection uses `internal/xen/xapi` for headless pool-wide inventory over HTTPS. That provider handles the RPC session and bulk query. Its CLI presenter sorts and formats records. CI tests and vets the module and checks static Linux builds for amd64 and arm64.
+An HTTPS XenAPI connection uses one authenticated session for pool-wide VM inventory and bulk metrics. The TUI reads RRD samples from the configured authority. Each open connection has an independent sampler, selection and history. The connections screen persists profiles through `internal/config`. The headless presenter sorts and formats a single inventory. CI tests and vets the module and checks static Linux builds for amd64 and arm64.
 
 ## Package map
 
