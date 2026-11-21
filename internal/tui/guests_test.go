@@ -125,7 +125,7 @@ func confirmedEdit(t *testing.T, target xen.Domain, shortcut, input rune, title 
 	result := func() {
 		t.Helper()
 		select {
-		case r := <-w.guestResults:
+		case r := <-w.dialogResults:
 			if r.host != w.active || r.dialog != w.dialog {
 				t.Fatal("result for incorrect context")
 			}

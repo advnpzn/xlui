@@ -13,12 +13,6 @@ import (
 	"github.com/rivo/tview"
 )
 
-type guestResult struct {
-	host   *liveSession
-	dialog *connectionDialog
-	show   func()
-}
-
 func (h *liveSession) guestTarget() (xen.Domain, bool) {
 	if h.view.inspect != nil {
 		i := h.view.inspect
@@ -195,7 +189,7 @@ func (w *workspace) guestWork(h *liveSession, title string, preview bool, work f
 		defer cancel()
 		show := work(ctx)
 		select {
-		case w.guestResults <- guestResult{h, d, show}:
+		case w.dialogResults <- dialogResult{h, d, show}:
 		case <-w.ctx.Done():
 		}
 	}()

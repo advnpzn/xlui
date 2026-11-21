@@ -125,6 +125,7 @@ Mouse controls are enabled automatically in terminals that support mouse reporti
 | Select a domain | ↑ / ↓ | Click its row |
 | Cycle domain order | `o` | Click **Sort** |
 | Open the inspector | Enter | Double-click a row or click **Inspect** |
+| Sample vCPU placement in a local or SSH inspector | v | Click **vCPUs** |
 | Scroll the list or inspector | ↑ / ↓ or Page Up / Page Down | Scroll the wheel over the list or inspector |
 | Return to the list | Esc | Click **Back** |
 | Filter by name, ID, UUID or state | `/`, then type | Click **Filter**, then type |
@@ -135,6 +136,8 @@ Mouse controls are enabled automatically in terminals that support mouse reporti
 Press `o` to cycle through provider order, name, CPU load, allocated memory and guest-used memory. Resource readings sort highest first, with unavailable readings last. Each connection remembers its order while open. Sorting and filtering use the latest cached observation.
 
 The built-in refresh interval is **2s**. Press `,` from the dashboard or inspector to enter an exact interval such as `750ms` or `5s`. **Apply** updates only the active session. **Apply + save default** also sets the starting interval for new sessions, including after a restart. xlui stores the default in `preferences.json` alongside the connection profiles. An explicit `--interval` takes precedence for new sessions in that run.
+
+For a local or SSH connection, inspect a domain and press `v` to sample its vCPU placement, including in read-only mode. Each row shows the physical CPU observed by `xl vcpu-list`, scheduler state, cumulative CPU time, and allowed (hard) and preferred (soft) CPU masks. A vCPU can migrate after the sample. Press Esc to return, then `v` for a fresh sample. This view requires an xl version that reports both affinity masks.
 
 Press `-` to refresh faster or `+` to refresh slower in 100 ms steps, down to 100 ms. The header shows the active session’s interval. Changes take effect in the dashboard and inspector and preserve chart history. Use `xlui --host bench --interval 500ms` to start sessions at a different interval. If collection takes longer than the selected interval, xlui skips missed polls. Charts advance as samples arrive.
 

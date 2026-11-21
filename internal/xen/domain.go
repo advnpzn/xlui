@@ -31,3 +31,12 @@ type Identity struct {
 }
 
 func (d Domain) Identity() Identity { return Identity{d.UUID, d.ID} }
+
+// VCPU is a toolstack scheduling observation for one virtual CPU.
+type VCPU struct {
+	ID, CPU int // CPU is the observed physical CPU, or -1 when offline.
+	State   string
+	Seconds float64
+	Hard    string // allowed physical CPUs
+	Soft    string // preferred physical CPUs
+}

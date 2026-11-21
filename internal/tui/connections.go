@@ -15,15 +15,25 @@ type connectionDialog struct {
 	body, focus          tview.Primitive
 	detail               *tview.TextView
 	back                 func()
+	cancel               func()
+	inspector            *inspector // only for reads tied to an observed domain
 	down                 bool
 	pressX, pressY       int
 }
 
 func (w *workspace) show(title, hint string, body tview.Primitive, back func()) *connectionDialog {
+	w.dismissDialog()
 	d := &connectionDialog{title: title, hint: hint, body: body, back: back}
 	w.dialog = d
 	d.setFocus(body)
 	return d
+}
+
+func (w *workspace) dismissDialog() {
+	if d := w.dialog; d != nil && d.cancel != nil {
+		d.cancel()
+	}
+	w.dialog = nil
 }
 
 func (d *connectionDialog) setFocus(p tview.Primitive) {
