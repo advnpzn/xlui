@@ -37,6 +37,8 @@ type vmRecord struct {
 	bootSettings
 	VBDs          []string    `json:"VBDs"`
 	VIFs          []string    `json:"VIFs"`
+	Allowed       []string    `json:"allowed_operations"`
+	Resident      string      `json:"resident_on"`
 	DomainID      json.Number `json:"domid"`
 	Metrics       string      `json:"metrics"`
 	UUID          string      `json:"uuid"`
@@ -67,7 +69,9 @@ func List(ctx context.Context, endpoint, username, password string, client *http
 
 type Monitor struct {
 	mu                          sync.Mutex
-	rpc                         *rpcClient
+	writeMu                     sync.Mutex
+	epoch                       uint64
+	rpc, shutdownRPC            *rpcClient
 	username, password, session string
 	loginErr                    error
 }
@@ -80,19 +84,22 @@ func NewMonitor(endpoint, username, password string, client *http.Client) (*Moni
 	if client == nil {
 		client = http.DefaultClient
 	}
-	timeout := client.Timeout
-	if timeout <= 0 || timeout > 30*time.Second {
-		timeout = 30 * time.Second
+	// A cooperative guest shutdown can outlast the inventory RPC deadline.
+	// Both clients share the verified transport and honor a shorter caller timeout.
+	newRPC := func(maxWait time.Duration) *rpcClient {
+		timeout := client.Timeout
+		if timeout <= 0 || timeout > maxWait {
+			timeout = maxWait
+		}
+		return &rpcClient{endpoint: address.String(), http: &http.Client{
+			Transport: client.Transport,
+			Timeout:   timeout,
+			CheckRedirect: func(_ *http.Request, _ []*http.Request) error {
+				return http.ErrUseLastResponse
+			},
+		}}
 	}
-	rpc := &rpcClient{endpoint: address.String(), http: &http.Client{
-		Transport: client.Transport,
-		Timeout:   timeout,
-		CheckRedirect: func(_ *http.Request, _ []*http.Request) error {
-			return http.ErrUseLastResponse
-		},
-	}}
-
-	return &Monitor{rpc: rpc, username: username, password: password}, nil
+	return &Monitor{rpc: newRPC(30 * time.Second), shutdownRPC: newRPC(2 * time.Minute), username: username, password: password}, nil
 }
 
 // ParseEndpoint checks the authority and fixes the path used for JSON-RPC.
@@ -134,6 +141,7 @@ func (m *Monitor) records(ctx context.Context) (map[string]vmRecord, error) {
 			return nil, errors.New("XAPI login returned an empty session reference")
 		}
 		m.session = token
+		m.epoch++
 	}
 	var records map[string]vmRecord
 	err := m.rpc.call(ctx, "VM.get_all_records", []string{m.session}, &records, inventoryLimit)
@@ -182,7 +190,7 @@ func (m *Monitor) Close() {
 	m.rpc.http.CloseIdleConnections()
 }
 
-// Each provider session owns one sequential RPC client.
+// Each client issues its RPCs sequentially.
 type rpcClient struct {
 	endpoint string
 	http     *http.Client

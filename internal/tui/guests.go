@@ -51,6 +51,11 @@ func (w *workspace) guestMenu(h *liveSession) {
 		if pool {
 			if editable {
 				list.AddItem("Rename guest", tview.Escape(terminal.SingleLine(target.Name)), 'r', func() { w.guestForm(h, xen.RenameGuest, target) })
+				if target.State == "Running" && target.ID > 0 && target.ShutdownInstance != "" {
+					list.AddItem("Shut down gracefully", tview.Escape(terminal.SingleLine(target.Name)), 's', func() {
+						w.previewGuest(h, xen.Change{Action: xen.GracefulShutdown, Target: target.Identity(), Name: target.Name, Instance: target.ShutdownInstance})
+					})
+				}
 			}
 			editable = editable && target.State == "Halted"
 		}
@@ -123,10 +128,6 @@ func (w *workspace) guestForm(h *liveSession, kind xen.Action, target xen.Domain
 		hint += " · " + target.Name + " · " + target.UUID
 	}
 	f.AddButton("Preview", func() {
-		if h.view.lastError != nil {
-			w.dialog.message = "Inventory is stale. Reopen Guests after a successful refresh."
-			return
-		}
 		if !create || h.profile.Type != config.XAPI {
 			if create || kind == xen.SetMemory {
 				v, err := strconv.ParseInt(mem, 10, 64)
@@ -145,21 +146,28 @@ func (w *workspace) guestForm(h *liveSession, kind xen.Action, target xen.Domain
 				c.VCPUs = v
 			}
 		}
-		form := w.dialog
-		request := c
-		w.guestWork(h, "Preparing preview", true, func(ctx context.Context) func() {
-			plan, err := h.prepare(ctx, request)
-			return func() {
-				if err != nil {
-					w.dialog = form
-					form.message = err.Error()
-					return
-				}
-				w.confirmGuest(h, plan, func() { w.dialog = form })
-			}
-		})
+		w.previewGuest(h, c)
 	}).AddButton("Cancel", back)
 	w.show(title, hint, f, back)
+}
+
+func (w *workspace) previewGuest(h *liveSession, request xen.Change) {
+	origin := w.dialog
+	if h.view.lastError != nil {
+		origin.message = "Inventory is stale. Reopen Guests after a successful refresh."
+		return
+	}
+	w.guestWork(h, "Preparing preview", true, func(ctx context.Context) func() {
+		plan, err := h.prepare(ctx, request)
+		return func() {
+			if err != nil {
+				w.dialog = origin
+				origin.message = err.Error()
+				return
+			}
+			w.confirmGuest(h, plan, func() { w.dialog = origin })
+		}
+	})
 }
 
 // Workers return presentation callbacks to the terminal loop. A discarded

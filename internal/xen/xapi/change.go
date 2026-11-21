@@ -129,6 +129,9 @@ func validLabel(name string) bool {
 func (m *Monitor) Prepare(ctx context.Context, c xen.Change) (xen.Plan, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	if c.Action == xen.GracefulShutdown {
+		return m.prepareShutdown(ctx, c)
+	}
 	edit, err := m.inspectChange(ctx, c)
 	if err != nil {
 		return xen.Plan{}, err
@@ -140,6 +143,8 @@ func (m *Monitor) Prepare(ctx context.Context, c xen.Change) (xen.Plan, error) {
 		summary = fmt.Sprintf("Edit %s\nUUID %s\n%s\nEffective at next boot.", terminal.SingleLine(edit.name), edit.uuid, edit.before)
 	}
 	return xen.NewPlan(summary, func(ctx context.Context) (string, error) {
+		m.writeMu.Lock()
+		defer m.writeMu.Unlock()
 		m.mu.Lock()
 		defer m.mu.Unlock()
 		fresh, err := m.inspectChange(ctx, c)

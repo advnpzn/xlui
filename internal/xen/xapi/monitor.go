@@ -19,6 +19,7 @@ import (
 )
 
 type liveMetrics struct {
+	Start  string      `json:"start_time"`
 	Memory json.Number `json:"memory_actual"`
 	Count  json.Number `json:"VCPUs_number"`
 }
@@ -48,13 +49,14 @@ func (m *Monitor) Read(ctx context.Context) ([]xen.Domain, error) {
 	usage := m.readRRD(rrdCtx)
 	cancel()
 	out := make([]xen.Domain, 0, len(records))
-	for _, r := range records {
+	for ref, r := range records {
 		d := xen.Domain{ControlDomain: *r.ControlDomain, Name: *r.Name, UUID: r.UUID, State: r.PowerState, ID: -1, VCPUs: -1, MemoryMiB: -1, CPUSeconds: -1}
 		if r.PowerState == "Running" || r.PowerState == "Paused" {
 			if id, err := strconv.Atoi(r.DomainID.String()); err == nil && id >= 0 {
 				d.ID = id
 			}
 			live := metrics[r.Metrics]
+			d.ShutdownInstance = m.shutdownInstance(ref, r, d.ID, live.Start)
 			if b, err := live.Memory.Int64(); err == nil && b >= 0 {
 				d.MemoryMiB = b >> 20
 			}

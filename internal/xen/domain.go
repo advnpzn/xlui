@@ -14,6 +14,9 @@ type Domain struct {
 	CPUSeconds    float64  // -1 when no cumulative counter is available
 	CPUPercent    *float64 // 100% is one fully occupied logical CPU
 	GuestUsedKiB  *int64   // guest-reported usage when available
+
+	// ShutdownInstance binds a supported graceful shutdown to this observation.
+	ShutdownInstance string
 }
 
 // Identity binds a numeric ID to this guest inside a single session.
