@@ -13,15 +13,17 @@ import (
 // Stub the OS executables to check the actual argument boundary, environment and exit status.
 func TestInventory(t *testing.T) {
 	dir := t.TempDir()
+	const prelude = "#!/bin/sh\nif [ \"${XLUI_XAPI_PASSWORD+x}\" = x ]; then exit 17; fi\n"
 	for name, script := range map[string]string{
-		"xl":  "#!/bin/sh\nprintf '%s\\n' \"$LC_ALL\" \"$@\"\n",
-		"ssh": "#!/bin/sh\nprintf '%s\\n' \"$@\"\n",
+		"xl":  "printf '%s\\n' \"$LC_ALL\" \"$@\"\n",
+		"ssh": "printf '%s\\n' \"$@\"\n",
 	} {
-		if err := os.WriteFile(filepath.Join(dir, name), []byte(script), 0700); err != nil {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(prelude+script), 0700); err != nil {
 			t.Fatal(err)
 		}
 	}
 	t.Setenv("PATH", dir)
+	t.Setenv("XLUI_XAPI_PASSWORD", "unused-by-this-provider")
 	for _, tc := range []struct {
 		name string
 		args []string

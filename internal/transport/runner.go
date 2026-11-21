@@ -5,9 +5,9 @@ import (
 	"context"
 	"errors"
 	"io"
-	"os"
 	"os/exec"
 	"regexp"
+	"slices"
 	"strings"
 )
 
@@ -29,13 +29,19 @@ func (r Runner) Run(ctx context.Context, stdout, stderr io.Writer, program strin
 	var cmd *exec.Cmd
 	if r.host == "" {
 		cmd = exec.CommandContext(ctx, program, args...)
-		cmd.Env = append(os.Environ(), "LC_ALL=C")
 	} else {
 		words := []string{"LC_ALL=C", shellWord(program)}
 		for _, arg := range args {
 			words = append(words, shellWord(arg))
 		}
 		cmd = exec.CommandContext(ctx, "ssh", "-T", "--", r.host, strings.Join(words, " "))
+	}
+	// An xl or SSH process has no use for credentials for a different provider.
+	cmd.Env = slices.DeleteFunc(cmd.Environ(), func(entry string) bool {
+		return strings.HasPrefix(entry, "XLUI_XAPI_PASSWORD=")
+	})
+	if r.host == "" {
+		cmd.Env = append(cmd.Env, "LC_ALL=C")
 	}
 	cmd.Stdout = stdout
 	cmd.Stderr = stderr
