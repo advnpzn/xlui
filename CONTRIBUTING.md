@@ -15,6 +15,17 @@ CGO_ENABLED=0 go build -o ./xlui ./cmd/xlui
 
 The tests use temporary executables to exercise local and SSH argument handling. They run without a Xen host. To exercise the current command on an authorized host, run `./xlui list` in Dom0 or `./xlui --host <ssh-alias> list` on a workstation. The remote path uses the workstation's OpenSSH client and the target's installed xl.
 
+## Run the ARM64 Xen Dom0 smoke test
+
+On a Debian 13 workstation, install `qemu-system-arm`, `python3-pexpect`, `cpio`, `gzip`, `xz-utils`, `openssh-client`, and `debian-archive-keyring`. From the repository root, run the following as a regular user with the Go toolchain on PATH.
+
+```sh
+CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -o /tmp/xlui-arm64 ./cmd/xlui
+bash packaging/xen/boot-arm64.sh /tmp/xlui-arm64
+```
+
+The script downloads Debian trixie ARM64 packages using isolated APT state and Debian archive signatures, then boots the packaged Xen hypervisor and Linux control domain under QEMU software emulation. It compares the Dom0 name and UUID from native `xl list -v` against xlui's local and SSH inventory, opens that domain's inspector and vCPU placement through each connection, and checks that the TUI exits cleanly. The guest has one domain, no network device, and a loopback OpenSSH server with a per-run pinned host key. The test uses 1200 MiB of emulated RAM and removes its temporary files on exit. Its coverage is read-only. The captured `list-v-debian-4.20-arm64.txt` inventory also runs in the ordinary Go tests.
+
 ## Where to test a change
 
 | Change | Evidence to include in the pull request |
