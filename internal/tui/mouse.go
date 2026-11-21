@@ -43,7 +43,7 @@ func (b *browser) mouseTarget(x, y, height int) mouseTarget {
 		row, _ := b.table.CellAt(x, y)
 		if row > 0 && row <= len(b.rows.visible) {
 			target.row = row
-			target.domain = keyOf(b.rows.all[b.rows.visible[row-1]])
+			target.domain = keyOf(b.rows.Domains[b.rows.visible[row-1]])
 			return target
 		}
 	}
@@ -69,7 +69,7 @@ func (b *browser) mouse(ev *tcell.EventMouse, width, height int) bool {
 			direction = tview.MouseScrollDown
 		}
 		if b.inspect != nil {
-			b.detail.MouseHandler()(direction, ev, nil)
+			b.inspect.view.MouseHandler()(direction, ev, nil)
 		} else if len(b.rows.visible) > 0 {
 			b.table.MouseHandler()(direction, ev, nil)
 		}

@@ -34,7 +34,7 @@ func (b *browser) emptyMessage() string {
 		return "Inventory unavailable\n" + terminal.SingleLine(b.lastError.Error()) + "\nRetrying automatically."
 	case b.latest.IsZero():
 		return "Waiting for the first inventory sample."
-	case len(b.rows.all) == 0:
+	case len(b.rows.Domains) == 0:
 		return "No domains in the last sample."
 	case b.edit != nil:
 		return "No matching domains.\nEdit the filter, Enter to apply or Esc to cancel."
@@ -56,7 +56,7 @@ func (b *browser) draw(screen tcell.Screen) {
 	}
 	content := tview.Primitive(b.table)
 	if b.inspect != nil {
-		content = b.detail
+		content = b.inspect.render(width)
 	} else if len(b.rows.visible) == 0 {
 		content = b.message.SetText(b.emptyMessage())
 	}

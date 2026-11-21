@@ -10,11 +10,14 @@ import (
 )
 
 // Snapshot retains the last successful observation and reports the latest read error.
-// A zero ObservedAt means no read has succeeded. Treat Domains as read-only.
+// A zero ObservedAt means no read has succeeded. Sequence counts completed
+// reads in this host session, including failures. Treat Domains as read-only.
 type Snapshot struct {
+	Sequence   uint64
 	Domains    []xen.Domain
 	ObservedAt time.Time
 	Err        error
+	cpu        map[domainInstance]cpuSample
 }
 
 // Reader returns a fresh slice that it will not subsequently modify.
@@ -64,11 +67,7 @@ func (i *Inventory) poll(ctx context.Context, interval time.Duration, read Reade
 		if ctx.Err() != nil {
 			return
 		}
-		if err == nil {
-			latest.Domains = domains
-			latest.ObservedAt = time.Now()
-		}
-		latest.Err = err
+		latest = latest.afterRead(domains, time.Now(), err)
 		// Only poll publishes. A slow consumer still receives the last good data
 		// if a failed refresh replaces its unread successful frame.
 		select {

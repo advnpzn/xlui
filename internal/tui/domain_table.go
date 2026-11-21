@@ -3,19 +3,19 @@ package tui
 import (
 	"strconv"
 
+	"github.com/advnpzn/xlui/internal/session"
 	"github.com/advnpzn/xlui/internal/terminal"
-	"github.com/advnpzn/xlui/internal/xen"
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
 )
 
 type domainRows struct {
 	tview.TableContentReadOnly
-	all     []xen.Domain
+	session.Snapshot
 	visible []int
 }
 
-var columns = [...]string{"NAME", "ID", "STATE", "MiB", "vCPUs", "CPU sec"}
+var columns = [...]string{"NAME", "ID", "STATE", "MiB", "vCPUs", "CPU %"}
 
 func (r *domainRows) GetColumnCount() int { return len(columns) }
 func (r *domainRows) GetRowCount() int    { return len(r.visible) + 1 }
@@ -28,7 +28,7 @@ func (r *domainRows) GetCell(row, col int) *tview.TableCell {
 	if row == 0 {
 		return tview.NewTableCell(columns[col]).SetSelectable(false).SetAttributes(tcell.AttrBold)
 	}
-	d := r.all[r.visible[row-1]]
+	d := r.Domains[r.visible[row-1]]
 	var text string
 	switch col {
 	case 0:
@@ -42,7 +42,7 @@ func (r *domainRows) GetCell(row, col int) *tview.TableCell {
 	case 4:
 		text = strconv.Itoa(d.VCPUs)
 	case 5:
-		text = strconv.FormatFloat(d.CPUSeconds, 'f', 1, 64)
+		text = formatPercent(r.CPUPercent(d))
 	}
 	return tview.NewTableCell(text)
 }

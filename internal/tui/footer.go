@@ -61,7 +61,7 @@ func (b *browser) drawFooter(screen tcell.Screen, width, y int) {
 			add("[Enter Inspect]", tcell.KeyEnter, 0)
 		}
 		add("[q Quit]", tcell.KeyRune, 'q')
-		fmt.Fprintf(&line, "%d/%d domains", len(b.rows.visible), len(b.rows.all))
+		fmt.Fprintf(&line, "%d/%d domains", len(b.rows.visible), len(b.rows.Domains))
 		if query != "" {
 			line.WriteString("   Filter: " + terminal.SingleLine(query))
 		}
