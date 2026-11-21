@@ -76,9 +76,6 @@ func (m definitions) file(ctx context.Context, mode, name, digest, data string, 
 	return out.buf.String(), nil
 }
 func (m definitions) prepare(ctx context.Context, c xen.Change) (xen.Plan, error) {
-	if c.Action == xen.RenameGuest {
-		return xen.Plan{}, errors.New("renaming a guest is available on XenAPI connections only")
-	}
 	if err := xen.CheckName(c.Name); err != nil {
 		return xen.Plan{}, err
 	}

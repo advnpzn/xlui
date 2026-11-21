@@ -23,7 +23,6 @@ const (
 
 type rpcStep struct {
 	method     string
-	params     []string
 	result     any
 	fault      any
 	responseID any
@@ -61,10 +60,6 @@ func xenServer(t *testing.T, steps ...rpcStep) *httptest.Server {
 		if req.Method == "session.login_with_password" {
 			if len(req.Params) != 4 || req.Params[0] != testUser || req.Params[1] != testPassword || req.Params[2] == "" || req.Params[3] != "xlui" {
 				t.Error("unexpected login parameters")
-			}
-		} else if step.params != nil {
-			if !reflect.DeepEqual(req.Params, step.params) {
-				t.Errorf("%s did not receive the expected parameters", req.Method)
 			}
 		} else if !reflect.DeepEqual(req.Params, []string{testSession}) {
 			t.Errorf("%s did not receive the session reference as its sole argument", req.Method)

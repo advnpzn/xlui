@@ -12,28 +12,12 @@ import (
 )
 
 func TestGuestEditNeedsExplicitApply(t *testing.T) {
-	target := xen.Domain{Name: "guest", UUID: "11111111-1111-4111-8111-111111111111", ID: -1, State: "Halted"}
-	got := confirmedEdit(t, target, 'v', '4', "EDIT GUEST")
-	if got.Target != target.Identity() || got.VCPUs != 4 || got.Action != xen.SetVCPUs {
-		t.Fatalf("wrong dispatch: %+v", got)
-	}
-}
-
-func TestRenameRunningPoolGuest(t *testing.T) {
-	target := xen.Domain{Name: "guest", UUID: "11111111-1111-4111-8111-111111111111", ID: 7, State: "Running"}
-	got := confirmedEdit(t, target, 'r', '2', "RENAME GUEST")
-	if got.Target != target.Identity() || got.Name != "guest" || got.NewName != "guest2" || got.Action != xen.RenameGuest {
-		t.Fatalf("wrong rename: %+v", got)
-	}
-}
-
-func confirmedEdit(t *testing.T, target xen.Domain, shortcut, input rune, title string) xen.Change {
-	t.Helper()
 	p := config.Profile{Name: "west-pool", Type: config.XAPI, Address: "https://west.example"}
+	target := xen.Domain{Name: "guest", UUID: "11111111-1111-4111-8111-111111111111", ID: -1, State: "Halted"}
 	applied := make(chan xen.Change, 2)
 	src := session.Source{Read: func(context.Context) ([]xen.Domain, error) { return []xen.Domain{target}, nil },
 		Prepare: func(_ context.Context, req xen.Change) (xen.Plan, error) {
-			return xen.NewPlan("Review change", func(context.Context) (string, error) { applied <- req; return "Verified", nil }), nil
+			return xen.NewPlan("Startup vCPUs: 2 → 4", func(context.Context) (string, error) { applied <- req; return "Verified", nil }), nil
 		}}
 	w := newWorkspace(t.Context(), p, time.Hour, func(config.Profile, string) (session.Source, error) { return src, nil }, config.Store{})
 	defer w.close()
@@ -61,9 +45,8 @@ func confirmedEdit(t *testing.T, target xen.Domain, shortcut, input rune, title 
 		}
 	}
 	key(tcell.KeyRune, 'g')
-	key(tcell.KeyRune, shortcut)
-	key(tcell.KeyEnd, 0)
-	key(tcell.KeyRune, input)
+	key(tcell.KeyRune, 'v')
+	key(tcell.KeyRune, '4')
 	key(tcell.KeyTab, 0)
 	key(tcell.KeyEnter, 0)
 	result()
@@ -76,7 +59,7 @@ func confirmedEdit(t *testing.T, target xen.Domain, shortcut, input rune, title 
 		t.Fatal("review submitted by default")
 	default:
 	}
-	if w.dialog.title != title {
+	if w.dialog.title != "EDIT GUEST" {
 		t.Fatal("Back did not restore draft")
 	}
 	key(tcell.KeyEnter, 0)
@@ -87,5 +70,8 @@ func confirmedEdit(t *testing.T, target xen.Domain, shortcut, input rune, title 
 	if w.dialog.title != "GUEST UPDATED" {
 		t.Fatal(w.dialog.title)
 	}
-	return <-applied
+	got := <-applied
+	if got.Target != target.Identity() || got.VCPUs != 4 || got.Action != xen.SetVCPUs {
+		t.Fatalf("wrong dispatch: %+v", got)
+	}
 }

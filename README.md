@@ -74,8 +74,6 @@ Press **g** or click **Guests**. Select an action, fill in the form, and choose 
 | Local Dom0 or SSH | **Create guest** saves `/etc/xen/<name>.cfg` and starts a Linux guest using a kernel and self-contained initramfs already on Dom0. For disk-backed guests or custom networking, use **Start from saved definition** with a prepared Xen configuration. | Select a guest or open its saved definition by name. Changes apply the next time the guest is created from the file. |
 | XenAPI | Select a halted guest, choose **Create guest**, and give the clone a new name. You can also enter the source UUID. The pool returns a new halted VM. | Select a halted VM. Set startup vCPUs within its configured maximum, or set a fixed memory target within its static limits. |
 
-On a XenAPI connection, select a guest and choose **Guests → Rename guest** to change its pool display name. The preview shows the current name, proposed name and VM UUID. The change takes effect immediately and leaves the guest OS hostname and power state alone.
-
 On Dom0, the account needs permission to run `xl` and work in `/etc/xen`. The write path uses `sh`, `flock` and GNU coreutils. Existing files must have a matching guest name and an explicit guest UUID. Edits support single-line assignments and an explicit decimal `memory` or `vcpus` field. Other fields and comments are preserved. Starting a saved definition uses the host's JSON `xl create -n` output and its configured disks and devices. Use a XenAPI session for a pool-managed host.
 
 xlui rechecks the target before dispatch and reads it back to verify the result. If starting a new Dom0 guest fails after its definition is saved, inspect the file and inventory before using **Start from saved definition**. If a pool connection drops during a write, inspect the VM in the pool before retrying.
@@ -91,6 +89,7 @@ Mouse controls are enabled automatically in terminals that support mouse reporti
 | Switch open sessions | Tab | Click **Next** |
 | Shorten or lengthen the monitoring interval | `-` / `+` | Click **[-]** or **[+]** in the header |
 | Select a domain | ↑ / ↓ | Click its row |
+| Cycle domain order | `o` | Click **Sort** |
 | Open the inspector | Enter | Double-click a row or click **Inspect** |
 | Scroll the list or inspector | ↑ / ↓ or Page Up / Page Down | Scroll the wheel over the list or inspector |
 | Return to the list | Esc | Click **Back** |
@@ -98,6 +97,8 @@ Mouse controls are enabled automatically in terminals that support mouse reporti
 | Apply or cancel a filter edit | Enter / Esc | Click **Apply** or **Cancel** |
 | Clear the applied filter | Esc in the list | Click **Clear** |
 | Quit | `q` outside the filter editor, or Ctrl+C anywhere | Click **Quit** |
+
+Press `o` to cycle through provider order, name, CPU load, allocated memory and guest-used memory. Resource readings sort highest first, with unavailable readings last. Each connection remembers its order while open. Sorting and filtering use the latest cached observation.
 
 Each session starts at **2000 ms**. Press `-` to refresh faster or `+` to refresh slower in 100 ms steps, down to 100 ms. The header shows the active session’s interval. Changes take effect in the dashboard and inspector and preserve chart history. Use `xlui --host bench --interval 500ms` to start sessions at a different interval. If collection takes longer than the selected interval, xlui skips missed polls. Charts advance as samples arrive.
 

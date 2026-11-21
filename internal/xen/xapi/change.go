@@ -8,7 +8,6 @@ import (
 	"slices"
 	"strings"
 	"unicode"
-	"unicode/utf8"
 
 	"github.com/advnpzn/xlui/internal/terminal"
 	"github.com/advnpzn/xlui/internal/xen"
@@ -31,13 +30,13 @@ func (m *Monitor) inspectChange(ctx context.Context, c xen.Change) (poolEdit, er
 	}
 	uuid := c.Target.UUID
 	if c.Action == xen.CreateGuest {
-		if !validLabel(c.Name) {
+		if strings.TrimSpace(c.Name) == "" || strings.TrimSpace(c.Name) != c.Name || len(c.Name) > 255 || strings.IndexFunc(c.Name, func(r rune) bool { return !unicode.IsPrint(r) }) >= 0 {
 			return edit, errors.New("enter a printable VM name of 1–255 bytes without surrounding spaces")
 		}
 		uuid = c.SourceUUID
 	}
 	if !xen.GuestUUID(uuid) {
-		return edit, errors.New("enter a valid guest UUID")
+		return edit, errors.New("enter the UUID of a halted guest")
 	}
 	var vm vmRecord
 	for ref, r := range records {
@@ -49,28 +48,12 @@ func (m *Monitor) inspectChange(ctx context.Context, c xen.Change) (poolEdit, er
 			vm = r
 		}
 	}
-	if edit.ref == "" || edit.ref == "OpaqueRef:NULL" || *vm.ControlDomain {
-		return edit, errors.New("select a guest VM in this pool")
-	}
-	edit.uuid = vm.UUID
-	edit.name = *vm.Name
-	if c.Action == xen.RenameGuest {
-		// A label belongs to the persistent VM object across power transitions.
-		if edit.name != c.Name {
-			return edit, errors.New("guest name changed; review its current name")
-		}
-		if !validLabel(c.NewName) || c.NewName == c.Name {
-			return edit, errors.New("enter a different printable VM name of 1–255 bytes without surrounding spaces")
-		}
-		edit.before = fmt.Sprintf("Rename VM %q → %q\nUUID %s\nThe pool display name changes immediately.", terminal.SingleLine(edit.name), c.NewName, edit.uuid)
-		edit.method = "VM.set_name_label"
-		edit.values = []any{c.NewName}
-		return edit, nil
-	}
-	if vm.PowerState != "Halted" {
+	if edit.ref == "" || *vm.ControlDomain || vm.PowerState != "Halted" {
 		return edit, errors.New("select a halted guest VM in this pool")
 	}
 	edit.settings = vm.bootSettings
+	edit.uuid = vm.UUID
+	edit.name = *vm.Name
 	if c.Action != xen.CreateGuest && (c.Target.ID != -1 || c.Name != edit.name) {
 		return edit, errors.New("selected guest changed; select it again")
 	}
@@ -121,11 +104,6 @@ func (m *Monitor) inspectChange(ctx context.Context, c xen.Change) (poolEdit, er
 	return edit, nil
 }
 
-func validLabel(name string) bool {
-	return name != "" && len(name) <= 255 && utf8.ValidString(name) && strings.TrimSpace(name) == name &&
-		strings.IndexFunc(name, func(r rune) bool { return !unicode.IsPrint(r) }) < 0
-}
-
 func (m *Monitor) Prepare(ctx context.Context, c xen.Change) (xen.Plan, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -134,7 +112,7 @@ func (m *Monitor) Prepare(ctx context.Context, c xen.Change) (xen.Plan, error) {
 		return xen.Plan{}, err
 	}
 	var summary string
-	if c.Action == xen.CreateGuest || c.Action == xen.RenameGuest {
+	if c.Action == xen.CreateGuest {
 		summary = edit.before
 	} else {
 		summary = fmt.Sprintf("Edit %s\nUUID %s\n%s\nEffective at next boot.", terminal.SingleLine(edit.name), edit.uuid, edit.before)
@@ -170,9 +148,6 @@ func (m *Monitor) Prepare(ctx context.Context, c xen.Change) (xen.Plan, error) {
 				return "Created halted VM " + c.Name + " · " + got.UUID, nil
 			}
 		} else if got.UUID == edit.uuid {
-			if c.Action == xen.RenameGuest && *got.Name == c.NewName {
-				return "VM name saved and verified: " + c.NewName, nil
-			}
 			if c.Action == xen.SetVCPUs {
 				v, err := got.Startup.Int64()
 				if err == nil && v == c.VCPUs {

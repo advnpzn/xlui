@@ -1,4 +1,4 @@
-name: Verify requested revision 4bf7fd0c
+name: Verify requested revision d9561532
 on:
   push:
     branches: [verify/operator-changes-on-demand]
@@ -11,9 +11,9 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
-          ref: 4bf7fd0ce91bf50c8d203032e2a643a7119965a5
+          ref: d95615326e9b08c8267f2efddf30a1d6994367d8
       - name: Verify checkout
-        run: test "$(git rev-parse HEAD)" = 4bf7fd0ce91bf50c8d203032e2a643a7119965a5
+        run: test "$(git rev-parse HEAD)" = d95615326e9b08c8267f2efddf30a1d6994367d8
       - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
           go-version: stable
