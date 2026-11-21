@@ -34,7 +34,27 @@ if [ "$mode" = inspect-boot ]; then
 fi
 xl create -n -q "$tmp" >/dev/null 9<&- || fail "xl rejected the proposed boot definition."
 case "$mode" in
-check-*) exit ;;
+check-edit|edit)
+    [ "$(stat -c %h "$file")" = 1 ] || fail "Refusing to replace a multiply-linked guest definition."
+    # Standalone BusyBox ash prefers its cp applet even if GNU cp is on PATH.
+    # Invoke the first external cp by pathname so both shells use the same tool.
+    search=$PATH:
+    while [ -n "$search" ]; do
+        dir=${search%%:*}
+        search=${search#*:}
+        copy=${dir:-.}/cp
+        if [ -f "$copy" ] && [ -x "$copy" ]; then
+            "$copy" --attributes-only --preserve=all "$file" "$tmp" 2>/dev/null ||
+                fail "Could not preserve definition metadata. Check file permissions and that cp on PATH supports --attributes-only --preserve=all (GNU coreutils)."
+            break
+        fi
+        [ -n "$search" ] || fail "Install GNU coreutils cp on PATH to preserve definition metadata."
+    done
+    touch "$tmp"
+    digest=$(sha256sum "$file")
+    [ "${digest%% *}" = "$4" ] || fail "Guest definition changed during validation."
+    [ "$mode" = check-edit ] || mv -T "$tmp" "$file" ;;
+check-new) exit ;;
 boot) xl create -q "$tmp" 9<&- >/dev/null ;;
 create)
     # Link without replacement and start precisely the checked bytes. Prevent
@@ -42,11 +62,4 @@ create)
     ln "$tmp" "$file" || fail "Could not publish the new definition."
     xl create -q "$tmp" 9<&- >/dev/null || fail "Definition saved; guest start was not verified."
     ;;
-edit)
-    [ "$(stat -c %h "$file")" = 1 ] || fail "Refusing to replace a multiply-linked guest definition."
-    cp --attributes-only --preserve=all "$file" "$tmp"
-    touch "$tmp"
-    digest=$(sha256sum "$file")
-    [ "${digest%% *}" = "$4" ] || fail "Guest definition changed during validation."
-    mv -T "$tmp" "$file" ;;
 esac
