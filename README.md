@@ -1,6 +1,8 @@
 # xlui
 
-xlui is a read-only terminal browser for plain Xen hosts. Use it locally in Dom0 or connect from a Linux workstation over OpenSSH. It also provides headless VM inventory for XenAPI pools.
+xlui is a terminal management tool for Xen, inspired by k9s. The project scope includes inspecting, creating, editing, starting, stopping and deleting guests through the toolstack that manages them.
+
+The current implementation supports inventory and inspection. Use the interactive browser locally in Dom0 or from a Linux workstation over OpenSSH. The headless `list` command also supports XenAPI pools. Guest lifecycle and configuration changes are planned in the [management action design](docs/architecture.md#management-actions).
 
 Build on Linux with Go 1.25.0 or newer. Use the latest patched stable Go release for production builds, as CI does.
 

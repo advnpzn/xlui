@@ -17,7 +17,7 @@ The packages described above exist today. The remaining entries define where the
 | `cmd/xlui/` | Parse CLI flags, handle process signals and exit codes, select a context and wire concrete dependencies. Preserve the existing headless `list` command and its streamed output. |
 | `internal/xen/` | Define the shared vocabulary for host and domain identities, snapshots, observations, capabilities and typed actions. Keep it independent of terminal widgets, process execution and serialization formats. |
 | `internal/xen/xl/` | Implement the plain-Xen provider. Choose Xen tool invocations, recognize supported output, parse domain state and translate typed actions into validated arguments. Keep anonymized tool output under this package's `testdata/`. |
-| `internal/xen/xapi/` | Read pool inventory from the configured XAPI authority. Own JSON-RPC, session lifetime and decoding. |
+| `internal/xen/xapi/` | Read pool inventory from the configured XAPI authority. Own JSON-RPC, session lifetime, decoding and the implementation of future pool-managed operations. |
 | `internal/transport/` | Execute a command on local Dom0 or through OpenSSH. Own cancellation, remote-shell argument encoding, connection reuse, stderr and exit status. Give an interactive console an explicit PTY path. |
 | `internal/session/` | Own one active host session, its refresh schedule, published snapshots, bounded metric histories and pending actions. Define small interfaces here for the provider operations this package consumes. |
 | `internal/tui/` | Compose Xen screens, handle navigation, and bind typed session data to the terminal. Keep reusable presentation behavior in `internal/tui/widgets/`. Use tview over tcell, with asciigraph planned for expanded plots. |
@@ -32,6 +32,14 @@ The packages described above exist today. The remaining entries define where the
 The session owns the mutable sample history. Publish immutable snapshots and coalesce redraws so a slow serial terminal can skip an intermediate frame without blocking collection. Marshal widget changes onto the tview event loop. Changing a theme through `:settings` triggers a local repaint. Changing the polling interval updates the session timer. Both changes can be saved in the operator's configuration.
 
 **Requesting a graceful shutdown.** The UI submits an action for the selected host and observed domain instance. The session checks the owning provider's capability, previews the target, and rechecks identity and state after confirmation. A domid can be reused. Bind the request to the host, UUID and available instance evidence. If a replacement guest cannot be distinguished, stop the action. The provider executes the typed request through the selected transport. The session then observes whether the guest shut down. A lost reply leaves the outcome unknown until reconciled. Switching contexts invalidates pending confirmations. In direct mode the host account supplies authority.
+
+## Management actions
+
+The planned TUI supports creating guests, editing configuration, controlling power and deleting resources. Each screen offers actions supported for the selected resource and its current state. An explicit read-only mode should suppress modification commands and reject write requests in the session. Host and pool permissions remain authoritative for every write.
+
+An edit preview shows the changed fields with their current and proposed values. If the target or an edited field changes before confirmation, show the updated values and let the operator review them again.
+
+For deletion, distinguish **Force stop guest**, **Delete VM definition** and **Delete virtual disk**. The confirmation identifies the host or pool, the resource name and UUID, and the effect on attached storage. Each affected disk must be explicitly identified before a request can delete it. The owning provider applies the confirmed operation to the identified resource. If the reply is lost, reconcile against that resource before offering a retry.
 
 ## Extension points
 
