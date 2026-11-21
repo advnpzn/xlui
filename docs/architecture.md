@@ -4,11 +4,11 @@ xlui has one Go module and one operator executable. A Linux workstation connecte
 
 ## Current code
 
-`cmd/xlui/main.go` implements `xlui list` and `xlui --host <destination> list`. It streams `xl list -v`, locally or through OpenSSH. Its tests exercise both command paths. CI tests and vets the module and checks static Linux builds for amd64 and arm64.
+`cmd/xlui` parses the command line and constructs a runner. Its local and remote `list` paths both call `xl.StreamInventory` in `internal/xen/xl`. That function selects `xl list -v` and streams its output. The runner in `internal/transport` handles local process execution or OpenSSH. CLI tests exercise both paths. CI tests and vets the module and checks static Linux builds for amd64 and arm64.
 
 ## Package map
 
-The table defines where to put code as it is implemented. Create a package with its first implementation and tests. Today the executable is the only Go package.
+The three packages above exist today. The remaining entries define where the corresponding features belong when implemented. See the [TUI component and session design](tui.md) for screen composition, Go interfaces and ownership of state.
 
 | Path | Responsibility |
 | --- | --- |
@@ -17,7 +17,7 @@ The table defines where to put code as it is implemented. Create a package with 
 | `internal/xen/xl/` | Implement the plain-Xen provider. Choose Xen tool invocations, recognize supported output, parse domain state and translate typed actions into validated arguments. Keep anonymized tool output under this package's `testdata/`. |
 | `internal/transport/` | Execute a command on local Dom0 or through OpenSSH. Own cancellation, remote-shell argument encoding, connection reuse, stderr and exit status. Give an interactive console an explicit PTY path. |
 | `internal/session/` | Own one active host session, its refresh schedule, published snapshots, bounded metric histories and pending actions. Define small interfaces here for the provider operations this package consumes. |
-| `internal/tui/` | Own the domain table, inspector, charts, filter, key bindings and settings view. Start with files such as `domains.go`, `inspector.go` and `settings.go` in one package. The selected stack is tview over tcell, with asciigraph for expanded time-series plots. |
+| `internal/tui/` | Compose Xen screens, handle navigation, and bind typed session data to the terminal. Keep reusable presentation behavior in `internal/tui/widgets/`. Use tview over tcell, with asciigraph planned for expanded plots. |
 | `internal/config/` | Read and save operator preferences and named connection contexts. A terminal theme or refresh interval belongs here. A guest's boot configuration belongs to the host provider. |
 
 `cmd/xlui` is the composition root. The TUI consumes a session. The session consumes provider interfaces that use `internal/xen` types. The plain-Xen provider accepts a runner with the operations it needs. The executable supplies its local or SSH implementation. This keeps a parser test independent of SSH and lets a screen test run with an in-memory session. There is no shared `utils` package or public Go SDK in this design.

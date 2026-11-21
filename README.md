@@ -16,4 +16,5 @@ The remote host needs a functioning xl installation and an account permitted to 
 ## Working on xlui
 
 - [Architecture and source layout](docs/architecture.md) explains where domain data, terminal views, transports and host actions belong.
+- [TUI design](docs/tui.md) defines reusable widgets, Xen-specific screens and the session interfaces that connect them.
 - [Contributing](CONTRIBUTING.md) covers local checks, test fixtures and Conventional Commits.

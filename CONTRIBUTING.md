@@ -1,6 +1,6 @@
 # Contributing to xlui
 
-Use the Go version in [go.mod](go.mod) or newer on Linux. Read the [architecture and source layout](docs/architecture.md) when choosing where a change belongs.
+Use the Go version in [go.mod](go.mod) or newer on Linux. Read the [source layout](docs/architecture.md) when choosing a package and the [TUI design](docs/tui.md) when adding a widget or screen.
 
 ## Build and run
 
@@ -29,9 +29,8 @@ Remove hostnames, guest identifiers, addresses, credentials and customer-specifi
 
 ## Submit a change
 
-1. Branch from the current default branch. Keep a pull request focused on one user-visible behavior or one coherent internal change.
-2. Format touched Go files with `gofmt`. Run the checks relevant to the change and describe any verification still outstanding.
-3. Use Conventional Commits for commit subjects and the PR title. Choose a scope when it identifies the affected area, for example `feat(tui): filter domains by state`, `fix(xl): preserve unknown CPU readings` or `docs: explain the SSH inventory path`.
-4. Open the pull request against the default branch. Explain the operator-visible effect, how it was verified, and any changes to privileges, target identity or compatibility.
+1. Prepare the change locally. Keep each commit focused on one user-visible behavior or one coherent internal change.
+2. Format touched Go files with `gofmt` and run the relevant checks. Use Conventional Commits, for example `feat(tui): filter domains by state` or `fix(xl): preserve unknown CPU readings`.
+3. Maintainers can apply a verified change directly to the current default branch and check its push CI. Contributors using a fork or requesting review can open a pull request against that branch with a Conventional Commit title. Describe the operator-visible effect, verification and any changes to privileges, target identity or compatibility.
 
 For a bug report, include the command or keystrokes, expected and observed behavior, xlui revision, host toolstack version and connection mode. For a new operation, describe the operator's task and which host management stack owns it.
