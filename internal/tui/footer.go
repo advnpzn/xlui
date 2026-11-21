@@ -15,7 +15,7 @@ type shortcut struct {
 }
 
 // Only fully visible buttons are clickable. Labels use single-cell ASCII.
-type footerButton struct {
+type shortcutButton struct {
 	shortcut
 	x int
 }
@@ -29,7 +29,7 @@ func (b *browser) drawFooter(screen tcell.Screen, width, y int) {
 		if x+len(label) > width {
 			return
 		}
-		b.buttons = append(b.buttons, footerButton{shortcut{label, key, char}, x})
+		b.buttons = append(b.buttons, shortcutButton{shortcut{label, key, char}, x})
 		line.WriteString(label)
 		line.WriteString("  ")
 	}

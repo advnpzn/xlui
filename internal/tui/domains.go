@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"math"
 	"strings"
 	"time"
 
@@ -11,12 +12,19 @@ import (
 	"github.com/rivo/tview"
 )
 
+const (
+	DefaultInterval = 2 * time.Second
+	MinInterval     = 100 * time.Millisecond
+	intervalStep    = 100 * time.Millisecond
+)
+
 type domainKey = xen.Identity
 
 func keyOf(d xen.Domain) domainKey { return d.Identity() }
 
 type browser struct {
 	stats                 dashboard
+	inventory             *session.Inventory
 	openCount             int
 	sessions, nextSession func()
 	host                  string
@@ -25,7 +33,8 @@ type browser struct {
 	filter                *tview.InputField
 	header                *tview.TextView
 	footer                *tview.TextView
-	buttons               []footerButton
+	buttons               []shortcutButton
+	refreshButtons        []shortcutButton
 	pointer               pointerState
 	message               *tview.TextView
 	inspect               *inspector
@@ -137,6 +146,16 @@ func (b *browser) key(ev *tcell.EventKey) bool {
 	if ev.Key() == tcell.KeyTab && b.nextSession != nil {
 		b.nextSession()
 		return false
+	}
+	if ev.Key() == tcell.KeyRune && b.inventory != nil {
+		switch ev.Rune() {
+		case '-':
+			b.inventory.SetInterval(max(MinInterval, b.inventory.Interval()-intervalStep))
+			return false
+		case '+':
+			b.inventory.SetInterval(min(time.Duration(math.MaxInt64)-intervalStep, b.inventory.Interval()) + intervalStep)
+			return false
+		}
 	}
 	if ev.Key() == tcell.KeyRune && ev.Rune() == 's' && b.sessions != nil {
 		b.sessions()

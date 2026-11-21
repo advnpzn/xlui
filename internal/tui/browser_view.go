@@ -1,9 +1,11 @@
 package tui
 
 import (
+	"fmt"
 	"github.com/advnpzn/xlui/internal/terminal"
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
+	"time"
 )
 
 // Keep freshness ahead of variable-length host names so a narrow terminal
@@ -30,6 +32,25 @@ func (b *browser) drawHeader(screen tcell.Screen, width int) {
 	b.header.SetTextColor(color).SetText(title)
 	b.header.SetRect(0, 0, width, 1)
 	b.header.Draw(screen)
+	b.refreshButtons = b.refreshButtons[:0]
+	if b.inventory == nil || b.edit != nil {
+		return
+	}
+	interval := b.inventory.Interval()
+	value := fmt.Sprintf("%d ms", interval.Milliseconds())
+	if interval%time.Millisecond != 0 {
+		value = interval.String()
+	}
+	label := " [-] " + value + " [+] "
+	left := width - len(label)
+	if left < len("Stale 00:00:00") {
+		return
+	}
+	paint(screen, left, 0, len(label), aqua, label)
+	b.refreshButtons = append(b.refreshButtons,
+		shortcutButton{shortcut{"[-]", tcell.KeyRune, '-'}, left + 1},
+		shortcutButton{shortcut{"[+]", tcell.KeyRune, '+'}, width - 4},
+	)
 }
 
 func (b *browser) emptyMessage() string {

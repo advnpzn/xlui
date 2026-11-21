@@ -1,7 +1,9 @@
 package tui
 
 import (
+	"context"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -150,4 +152,46 @@ func TestMouseFilterAndResize(t *testing.T) {
 	if v.click(1, 0) || v.edit != nil || v.inspect != nil {
 		t.Fatal("hidden footer responded to a click")
 	}
+}
+
+func TestHeaderIntervalControlsAndFilterInput(t *testing.T) {
+	v := newMouseView(t)
+	inv, err := session.WatchInventory(t.Context(), DefaultInterval, func(ctx context.Context) ([]xen.Domain, error) { <-ctx.Done(); return nil, ctx.Err() })
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer inv.Close()
+	v.inventory = inv
+	check := func(want string) {
+		t.Helper()
+		v.draw(v.screen)
+		var line strings.Builder
+		width, _ := v.screen.Size()
+		for x := range width {
+			r, _, _, _ := v.screen.GetContent(x, 0)
+			line.WriteRune(r)
+		}
+		if !strings.Contains(line.String(), want) {
+			t.Fatalf("missing %q in header %q", want, line.String())
+		}
+	}
+	key := func(r rune) { v.key(tcell.NewEventKey(tcell.KeyRune, r, 0)) }
+	check("[-] 2000 ms [+]")
+	key('-')
+	check("[-] 1900 ms [+]")
+	v.key(tcell.NewEventKey(tcell.KeyEnter, 0, 0))
+	v.click(v.refreshButtons[1].x+1, 0)
+	check("[-] 2000 ms [+]")
+	v.key(tcell.NewEventKey(tcell.KeyEsc, 0, 0))
+	key('/')
+	key('+')
+	key('-')
+	if v.filter.GetText() != "+-" || inv.Interval() != DefaultInterval {
+		t.Fatal("interval controls intercepted filter text")
+	}
+	v.key(tcell.NewEventKey(tcell.KeyEsc, 0, 0))
+	inv.SetInterval(125 * time.Millisecond)
+	key('-')
+	key('-')
+	check("[-] 100 ms [+]")
 }

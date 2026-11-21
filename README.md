@@ -73,6 +73,7 @@ Mouse controls are enabled automatically in terminals that support mouse reporti
 | --- | --- | --- |
 | Manage connections | `s` | Click **Sessions** |
 | Switch open sessions | Tab | Click **Next** |
+| Shorten or lengthen the monitoring interval | `-` / `+` | Click **[-]** or **[+]** in the header |
 | Select a domain | ↑ / ↓ | Click its row |
 | Open the inspector | Enter | Double-click a row or click **Inspect** |
 | Scroll the list or inspector | ↑ / ↓ or Page Up / Page Down | Scroll the wheel over the list or inspector |
@@ -82,7 +83,9 @@ Mouse controls are enabled automatically in terminals that support mouse reporti
 | Clear the applied filter | Esc in the list | Click **Clear** |
 | Quit | `q` outside the filter editor, or Ctrl+C anywhere | Click **Quit** |
 
-The list refreshes five seconds after each collection. Use `xlui --host bench --interval 10s` to change the delay. If a refresh fails, **Stale** and a timestamp identify the last successful sample. Open the inspector to see cumulative CPU time where available and up to 60 samples of CPU and allocated memory. Inspector charts start when opened and mark gaps with `?`.
+Each session starts at **2000 ms**. Press `-` to refresh faster or `+` to refresh slower in 100 ms steps, down to 100 ms. The header shows the active session’s interval. Changes take effect in the dashboard and inspector and preserve chart history. Use `xlui --host bench --interval 500ms` to start sessions at a different interval. If collection takes longer than the selected interval, xlui skips missed polls. Charts advance as samples arrive.
+
+If a refresh fails, **Stale** and a timestamp identify the last successful sample. Open the inspector to see cumulative CPU time where available and up to 60 samples of CPU and allocated memory. Inspector charts start when opened and mark gaps with `?`.
 
 ## Headless inventory
 

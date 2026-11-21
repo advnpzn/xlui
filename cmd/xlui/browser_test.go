@@ -22,8 +22,8 @@ func TestBrowserRouting(t *testing.T) {
 		host       string
 		interval   time.Duration
 	}{
-		{"xl", nil, "local Dom0", 5 * time.Second},
-		{"ssh", []string{"--host", "bench", "--interval", "2s"}, "bench", 2 * time.Second},
+		{"xl", nil, "local Dom0", 2 * time.Second},
+		{"ssh", []string{"--host", "bench", "--interval", "375ms"}, "bench", 375 * time.Millisecond},
 	} {
 		t.Run(tc.executable, func(t *testing.T) {
 			dir := t.TempDir()
@@ -68,8 +68,8 @@ func TestBrowserFlags(t *testing.T) {
 		args []string
 		want string
 	}{
-		{[]string{"--interval", "500ms"}, "at least 1s"},
-		{[]string{"--interval", "0s"}, "at least 1s"},
+		{[]string{"--interval", "99ms"}, "at least 100ms"},
+		{[]string{"--interval", "0s"}, "at least 100ms"},
 		{[]string{"--interval", "5s", "list"}, "only to the interactive browser"},
 		{[]string{"--xapi", "https://pool"}, "--xapi-user"},
 		{[]string{"helpme"}, "Usage:"},

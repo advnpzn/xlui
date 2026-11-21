@@ -57,7 +57,7 @@ func runWithBrowser(ctx context.Context, args []string, stdout, stderr io.Writer
 		flags.PrintDefaults()
 	}
 	host := flags.String("host", "", "OpenSSH destination (omit for local Dom0)")
-	interval := flags.Duration("interval", 5*time.Second, "interactive inventory refresh interval (minimum 1s)")
+	interval := flags.Duration("interval", tui.DefaultInterval, "initial monitoring interval per session (minimum 100ms)")
 	endpoint := flags.String("xapi", "", "HTTPS URL of the XAPI pool coordinator")
 	username := flags.String("xapi-user", "", "XAPI user (read the password from XLUI_XAPI_PASSWORD)")
 	caFile := flags.String("xapi-ca", "", "PEM file containing additional trusted XAPI CA certificates")
@@ -82,8 +82,8 @@ func runWithBrowser(ctx context.Context, args []string, stdout, stderr io.Writer
 		ctx, cancel = context.WithTimeout(ctx, 30*time.Second)
 		defer cancel()
 	}
-	if interactive && *interval < time.Second {
-		return errors.New("--interval must be at least 1s")
+	if interactive && *interval < tui.MinInterval {
+		return fmt.Errorf("--interval must be at least %s", tui.MinInterval)
 	}
 	if supplied["xapi"] {
 		if supplied["host"] {

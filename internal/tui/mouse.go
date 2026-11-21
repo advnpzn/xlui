@@ -25,12 +25,16 @@ type pointerState struct {
 
 func (b *browser) mouseTarget(x, y, height int) mouseTarget {
 	target := mouseTarget{x: x, y: y}
-	if y == height-1 {
+	if y == 0 || y == height-1 {
 		if b.edit != nil && b.filter.InRect(x, y) {
 			target.field = true
 			return target
 		}
-		for _, button := range b.buttons {
+		buttons := b.buttons
+		if y == 0 {
+			buttons = b.refreshButtons
+		}
+		for _, button := range buttons {
 			if x >= button.x && x < button.x+len(button.label) {
 				target.button = button.shortcut
 				if b.edit == nil && button.key == tcell.KeyEnter {
@@ -53,7 +57,7 @@ func (b *browser) mouseTarget(x, y, height int) mouseTarget {
 func (b *browser) mouse(ev *tcell.EventMouse, width, height int) bool {
 	x, y := ev.Position()
 	p := &b.pointer
-	if x < 0 || x >= width || y <= 0 || y >= height {
+	if x < 0 || x >= width || y < 0 || y >= height {
 		*p = pointerState{}
 		return false
 	}
@@ -61,7 +65,7 @@ func (b *browser) mouse(ev *tcell.EventMouse, width, height int) bool {
 	switch ev.Buttons() {
 	case tcell.WheelUp, tcell.WheelDown:
 		*p = pointerState{}
-		if y == height-1 {
+		if y == 0 || y == height-1 {
 			return false
 		}
 		direction := tview.MouseScrollUp

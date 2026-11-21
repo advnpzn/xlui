@@ -70,6 +70,7 @@ func (w *workspace) connect(p config.Profile, password string) {
 		return
 	}
 	h := &liveSession{profile: p, view: newBrowser(p.Name), cancel: cancel}
+	h.view.inventory = inv
 	h.view.sessions = func() { w.manager("") }
 	h.view.nextSession = w.next
 	w.order = append(w.order, p)

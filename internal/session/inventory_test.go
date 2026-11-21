@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/advnpzn/xlui/internal/xen"
@@ -76,4 +77,47 @@ func TestCPULoadFromCounters(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestLiveIntervalReschedulesSameReader(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		start := time.Now()
+		starts := make(chan time.Duration, 1)
+		inv, err := WatchInventory(t.Context(), time.Second, func(context.Context) ([]xen.Domain, error) {
+			starts <- time.Since(start)
+			time.Sleep(350 * time.Millisecond)
+			return []xen.Domain{{ID: 1, UUID: "vm", VCPUs: 1, CPUSeconds: time.Since(start).Seconds()}}, nil
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer inv.Close()
+		if got := <-starts; got != 0 {
+			t.Fatalf("first read at %v", got)
+		}
+		<-inv.Updates()
+		inv.SetInterval(2 * time.Second)
+		if got := <-starts; got != 2*time.Second {
+			t.Fatalf("lengthened interval started at %v", got)
+		}
+
+		// Change the interval twice during collection. The final value should
+		// apply without starting another read or resetting CPU measurements.
+		inv.SetInterval(time.Minute)
+		inv.SetInterval(100 * time.Millisecond)
+		s := <-inv.Updates()
+		if _, ok := s.CPUPercent(s.Domains[0]); !ok || s.Sequence != 2 {
+			t.Fatal("lost baseline across interval change")
+		}
+		if got := <-starts; got != 2400*time.Millisecond {
+			t.Fatalf("slow read caused drift or a catch-up poll at %v", got)
+		}
+		inv.SetInterval(time.Hour)
+		<-inv.Updates()
+		time.Sleep(time.Second)
+		inv.SetInterval(200 * time.Millisecond)
+		if got := <-starts; got != 3750*time.Millisecond {
+			t.Fatalf("overdue poll after shortening fired at %v", got)
+		}
+	})
 }
