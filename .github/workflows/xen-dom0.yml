@@ -29,6 +29,6 @@ jobs:
       - name: Build the client and run the live Dom0 check
         run: |
           install -d -m 0755 /tmp/xlui-dom0-check
-          CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -trimpath -o /tmp/xlui-dom0-check/xlui ./cmd/xlui
+          CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -buildvcs=false -trimpath -o /tmp/xlui-dom0-check/xlui ./cmd/xlui
           cp -R packaging/xen /tmp/xlui-dom0-check/
           runuser -u nobody -- bash /tmp/xlui-dom0-check/xen/boot-arm64.sh /tmp/xlui-dom0-check/xlui

@@ -9,9 +9,16 @@ import pexpect
 UUID = r"[a-fA-F0-9]{8}(?:-[a-fA-F0-9]{4}){3}-[a-fA-F0-9]{12}"
 
 
+def send_line(console, line):
+    # Leave time for the emulated Xen serial console to drain its input ring.
+    for start in range(0, len(line), 24):
+        console.send(line[start:start + 24])
+    console.sendline("")
+
+
 def shell(console, command):
     # The anchored markers cannot match the console's echoed command.
-    console.sendline("printf '\\nXLCHECK-BEGIN\\n'; " + command +
+    send_line(console, "printf '\\nXLCHECK-BEGIN\\n'; " + command +
                      "; printf '\\nXLCHECK-END=%d\\n' \"$?\"")
     console.expect(r"(?:^|[\r\n])XLCHECK-BEGIN\r*\n")
     console.expect(r"(?:^|[\r\n])XLCHECK-END=(\d+)\r*\n")
@@ -46,7 +53,7 @@ def check_dom0(console):
         if observed != (name, uuid):
             raise RuntimeError(f"{client} observed {observed}; xl observed {(name, uuid)}")
 
-        console.sendline(client + " --read-only --interval 10s; printf '\\nxlui-exit=%d\\n' \"$?\"")
+        send_line(console, client + " --read-only --interval 10s; printf '\\nxlui-exit=%d\\n' \"$?\"")
         console.expect_exact(name)
         # This disposable guest has only its control domain.
         console.send("\r")
@@ -70,6 +77,7 @@ if __name__ == "__main__":
         console.logfile_read = log
         try:
             console.expect_exact("XLUI-DOM0-READY", timeout=180)
+            console.expect_exact("/ # ")
             print(check_dom0(console))
         except (pexpect.TIMEOUT, pexpect.EOF):
             log.seek(0)
