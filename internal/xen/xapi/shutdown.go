@@ -2,6 +2,7 @@ package xapi
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"slices"
@@ -25,18 +26,15 @@ func shutdownEligible(ref string, vm vmRecord, id int) bool {
 
 // The pool owns a VM across boots. Bind a power action to the running guest
 // observed on one host, including its metrics start time and session epoch.
-func (m *Monitor) shutdownInstance(ref string, vm vmRecord, id int, start string) string {
+func (m *Monitor) shutdownInstance(ref string, vm vmRecord, id int, start json.RawMessage) string {
 	if !shutdownEligible(ref, vm, id) {
 		return ""
 	}
-	// Pools report ISO 8601 timestamps with a basic or extended date.
-	for _, layout := range []string{time.RFC3339, "20060102T15:04:05Z07:00"} {
-		t, err := time.Parse(layout, start)
-		if err == nil && t.Unix() > 0 {
-			return fmt.Sprintf("%d/%q/%q/%q/%d/%s", m.epoch, ref, vm.Resident, vm.Metrics, id, t.UTC().Format(time.RFC3339Nano))
-		}
+	t := bootTime(start)
+	if t.IsZero() {
+		return ""
 	}
-	return ""
+	return fmt.Sprintf("%d/%q/%q/%q/%d/%s", m.epoch, ref, vm.Resident, vm.Metrics, id, t.Format(time.RFC3339Nano))
 }
 
 // Caller owns the monitor lock for the inventory, metrics and session reads.

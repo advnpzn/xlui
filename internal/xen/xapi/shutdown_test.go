@@ -91,15 +91,16 @@ func TestGracefulShutdownFromInventory(t *testing.T) {
 		confirm  []rpcStep
 		dispatch []rpcStep
 		success  bool
+		message  string
 	}{
-		{"halted guest observed", normal, []rpcStep{dispatch, read(halted)}, true},
-		{"reboot reused domid", []rpcStep{poolVMs(shutdownVM, before), startMetric("2026-01-02T10:00:00Z")}, nil, false},
-		{"shutdown permission revoked", []rpcStep{poolVMs(shutdownVM, revoked)}, nil, false},
-		{"guest migrated", []rpcStep{poolVMs(shutdownVM, migrated), startMetric(shutdownStart)}, nil, false},
-		{"VM reference replaced", []rpcStep{poolVMs("OpaqueRef:replacement", before), startMetric(shutdownStart)}, nil, false},
-		{"reply lost", normal, []rpcStep{lostReply}, false},
-		{"still running", normal, []rpcStep{dispatch, read(before)}, false},
-		{"readback for another VM", normal, []rpcStep{dispatch, read(wrongVM)}, false},
+		{"halted guest observed", normal, []rpcStep{dispatch, read(halted)}, true, "Halted"},
+		{"reboot reused domid", []rpcStep{poolVMs(shutdownVM, before), startMetric("2026-01-02T10:00:00Z")}, nil, false, "changed"},
+		{"shutdown permission revoked", []rpcStep{poolVMs(shutdownVM, revoked)}, nil, false, "changed"},
+		{"guest migrated", []rpcStep{poolVMs(shutdownVM, migrated), startMetric(shutdownStart)}, nil, false, "changed"},
+		{"VM reference replaced", []rpcStep{poolVMs("OpaqueRef:replacement", before), startMetric(shutdownStart)}, nil, false, "changed"},
+		{"reply lost", normal, []rpcStep{lostReply}, false, "outcome unverified"},
+		{"still running", normal, []rpcStep{dispatch, read(before)}, false, "Halted state has not been observed"},
+		{"readback for another VM", normal, []rpcStep{dispatch, read(wrongVM)}, false, "shutdown accepted; guest identity could not be verified"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			steps := shutdownInventory(before, shutdownStart)
@@ -111,10 +112,33 @@ func TestGracefulShutdownFromInventory(t *testing.T) {
 			if (err == nil) != tc.success {
 				t.Fatalf("shutdown returned %q, %v", msg, err)
 			}
+			if err != nil {
+				msg = err.Error()
+			}
+			if !strings.Contains(msg, tc.message) {
+				t.Fatalf("shutdown message %q, want %q", msg, tc.message)
+			}
 			if _, err := plan.Apply(t.Context()); err == nil {
 				t.Fatal("shutdown plan could be applied twice")
 			}
 		})
+	}
+}
+
+func TestReauthenticationInvalidatesShutdownPreview(t *testing.T) {
+	vm := runningGuest()
+	steps := shutdownInventory(vm, shutdownStart)
+	steps = append(steps, poolVMs(shutdownVM, vm), startMetric(shutdownStart))
+	steps = append(steps, rpcStep{method: "VM.get_all_records", fault: map[string]any{"code": 1, "message": "SESSION_INVALID"}})
+	// Even if the reconnected pool returns identical references, the old
+	// confirmation belongs to the previous authenticated session.
+	steps = append(steps, rpcStep{method: "session.login_with_password", result: testSession}, poolVMs(shutdownVM, vm), startMetric(shutdownStart))
+	m, plan := prepareObservedShutdown(t, steps)
+	if _, err := m.Read(t.Context()); err == nil {
+		t.Fatal("expected expired session")
+	}
+	if _, err := plan.Apply(t.Context()); err == nil {
+		t.Fatal("shutdown confirmation survived reauthentication")
 	}
 }
 

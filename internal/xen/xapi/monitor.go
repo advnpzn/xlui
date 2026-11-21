@@ -19,9 +19,9 @@ import (
 )
 
 type liveMetrics struct {
-	Start  string      `json:"start_time"`
-	Memory json.Number `json:"memory_actual"`
-	Count  json.Number `json:"VCPUs_number"`
+	Start  json.RawMessage `json:"start_time"`
+	Memory json.Number     `json:"memory_actual"`
+	Count  json.Number     `json:"VCPUs_number"`
 }
 
 func (m *Monitor) Read(ctx context.Context) ([]xen.Domain, error) {
