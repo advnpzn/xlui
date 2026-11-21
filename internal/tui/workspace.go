@@ -33,7 +33,9 @@ type workspace struct {
 	workers      sync.WaitGroup
 	initial      config.Profile
 	store        config.Store
-	interval     time.Duration
+	interval     time.Duration // explicit CLI override, zero uses the saved default
+	preferences  intervalSettings
+	settingsDone chan func()
 	open         OpenSource
 	live         map[config.Profile]*liveSession
 	order        []config.Profile
@@ -46,7 +48,20 @@ type workspace struct {
 
 func newWorkspace(parent context.Context, initial config.Profile, interval time.Duration, open OpenSource, store config.Store) *workspace {
 	ctx, cancel := context.WithCancel(parent)
-	return &workspace{ctx: ctx, cancel: cancel, initial: initial, interval: interval, open: open, store: store, live: make(map[config.Profile]*liveSession), updates: make(chan hostUpdate), guestResults: make(chan guestResult)}
+	saved, err := store.LoadInterval()
+	return &workspace{
+		ctx:          ctx,
+		cancel:       cancel,
+		initial:      initial,
+		interval:     interval,
+		open:         open,
+		store:        store,
+		live:         make(map[config.Profile]*liveSession),
+		preferences:  intervalSettings{saved: saved, err: err},
+		settingsDone: make(chan func()),
+		updates:      make(chan hostUpdate),
+		guestResults: make(chan guestResult),
+	}
 }
 
 func (w *workspace) connect(p config.Profile, password string) {
@@ -64,7 +79,11 @@ func (w *workspace) connect(p config.Profile, password string) {
 		return
 	}
 	ctx, cancel := context.WithCancel(w.ctx)
-	inv, err := session.WatchInventory(ctx, w.interval, source.Read)
+	interval := w.interval
+	if interval == 0 {
+		interval = w.preferences.effective()
+	}
+	inv, err := session.WatchInventory(ctx, interval, source.Read)
 	if err != nil {
 		cancel()
 		if source.Close != nil {
@@ -77,6 +96,7 @@ func (w *workspace) connect(p config.Profile, password string) {
 	h.view.inventory = inv
 	h.view.sessions = func() { w.manager("") }
 	h.view.nextSession = w.next
+	h.view.settings = func() { w.settings(h) }
 	if h.prepare != nil {
 		h.view.guests = func() { w.guestMenu(h) }
 	}

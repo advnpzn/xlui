@@ -1,4 +1,4 @@
-// Package config stores the operator's named connections. Credentials stay with
+// Package config stores the operator's named connections and preferences. Credentials stay with
 // OpenSSH or in the running process.
 package config
 
@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-
 	"os"
 	"path/filepath"
 	"slices"
@@ -68,8 +67,9 @@ func (p Profile) Validate() error {
 
 type Store struct{ Path string }
 type settings struct {
-	Version     int       `json:"version"`
-	Connections []Profile `json:"connections"`
+	Version         int           `json:"version"`
+	Connections     []Profile     `json:"connections"`
+	DefaultInterval savedInterval `json:"default_interval,omitempty"`
 }
 
 func UserStore() (Store, error) {
@@ -81,9 +81,17 @@ func UserStore() (Store, error) {
 }
 
 func (s Store) Load() ([]Profile, error) {
+	cfg, err := s.load()
+	if err != nil {
+		return nil, err
+	}
+	return cfg.Connections, nil
+}
+
+func (s Store) load() (*settings, error) {
 	data, err := ReadFile(s.Path, 1<<20)
 	if errors.Is(err, os.ErrNotExist) {
-		return nil, nil
+		return &settings{Version: 1}, nil
 	}
 	if err != nil {
 		return nil, err
@@ -107,7 +115,7 @@ func (s Store) Load() ([]Profile, error) {
 		}
 		seen[p.Name] = true
 	}
-	return cfg.Connections, nil
+	return &cfg, nil
 }
 
 // Save merges one edit under a lock so two xlui processes cannot lose each
@@ -116,6 +124,33 @@ func (s Store) Save(before *Profile, after Profile) ([]Profile, error) {
 	if err := after.Validate(); err != nil {
 		return nil, err
 	}
+	cfg, err := s.update(func(cfg *settings) error {
+		index := -1
+		if before != nil {
+			index = slices.Index(cfg.Connections, *before)
+			if index < 0 {
+				return errors.New("connection changed on disk; reopen the connection manager")
+			}
+		}
+		for i, p := range cfg.Connections {
+			if i != index && p.Name == after.Name {
+				return errors.New("connection name already exists")
+			}
+		}
+		if index < 0 {
+			cfg.Connections = append(cfg.Connections, after)
+		} else {
+			cfg.Connections[index] = after
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return cfg.Connections, nil
+}
+
+func (s Store) update(edit func(*settings) error) (*settings, error) {
 	dir := filepath.Dir(s.Path)
 	if err := os.MkdirAll(dir, 0700); err != nil {
 		return nil, err
@@ -128,28 +163,14 @@ func (s Store) Save(before *Profile, after Profile) ([]Profile, error) {
 	if err = syscall.Flock(int(lock.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err != nil {
 		return nil, fmt.Errorf("configuration busy: %w", err)
 	}
-	profiles, err := s.Load()
+	cfg, err := s.load()
 	if err != nil {
 		return nil, err
 	}
-	index := -1
-	if before != nil {
-		index = slices.Index(profiles, *before)
-		if index < 0 {
-			return nil, errors.New("connection changed on disk; reopen the connection manager")
-		}
+	if err := edit(cfg); err != nil {
+		return nil, err
 	}
-	for i, p := range profiles {
-		if i != index && p.Name == after.Name {
-			return nil, errors.New("connection name already exists")
-		}
-	}
-	if index < 0 {
-		profiles = append(profiles, after)
-	} else {
-		profiles[index] = after
-	}
-	data, err := json.MarshalIndent(settings{1, profiles}, "", "  ")
+	data, err := json.MarshalIndent(cfg, "", "  ")
 	if err != nil {
 		return nil, err
 	}
@@ -171,5 +192,5 @@ func (s Store) Save(before *Profile, after Profile) ([]Profile, error) {
 	if err = os.Rename(tmp.Name(), s.Path); err != nil {
 		return nil, err
 	}
-	return profiles, nil
+	return cfg, nil
 }

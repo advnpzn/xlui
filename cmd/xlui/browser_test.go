@@ -22,7 +22,8 @@ func TestBrowserRouting(t *testing.T) {
 		host       string
 		interval   time.Duration
 	}{
-		{"xl", nil, "local Dom0", 2 * time.Second},
+		{"xl", nil, "local Dom0", 0},
+		{"xl", []string{"--interval", "2s"}, "local Dom0", 2 * time.Second},
 		{"ssh", []string{"--host", "bench", "--interval", "375ms"}, "bench", 375 * time.Millisecond},
 	} {
 		t.Run(tc.executable, func(t *testing.T) {

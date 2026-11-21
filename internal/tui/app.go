@@ -49,6 +49,8 @@ func runScreen(ctx context.Context, screen tcell.Screen, initial config.Profile,
 		select {
 		case <-ctx.Done():
 			return nil
+		case show := <-w.settingsDone:
+			show()
 		case result := <-w.guestResults:
 			if w.active == result.host && w.dialog == result.dialog {
 				result.show()
