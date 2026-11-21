@@ -7,15 +7,14 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"os/signal"
-	"regexp"
 	"time"
+
+	"github.com/advnpzn/xlui/internal/transport"
+	"github.com/advnpzn/xlui/internal/xen/xl"
 )
 
 const usage = "Usage: xlui [--host ssh://user@host | ssh-alias] list"
-
-var destination = regexp.MustCompile(`^(ssh://)?([a-zA-Z0-9_][a-zA-Z0-9._-]*@)?([a-zA-Z0-9][a-zA-Z0-9._-]*|\[[a-fA-F0-9:]+\])$`)
 
 func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
@@ -43,23 +42,11 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) error {
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
-	var cmd *exec.Cmd
-	if *host == "" {
-		cmd = exec.CommandContext(ctx, "xl", "list", "-v")
-		cmd.Env = append(os.Environ(), "LC_ALL=C")
-	} else {
-		if !destination.MatchString(*host) {
-			return errors.New("invalid SSH destination; use an SSH config alias for custom ports or jump hosts")
-		}
-		// The remote shell receives a fixed command. The SSH destination is a separate argument.
-		cmd = exec.CommandContext(ctx, "ssh", "-T", "--", *host, "LC_ALL=C xl list -v")
+	runner, err := transport.NewRunner(*host)
+	if err != nil {
+		return err
 	}
-	cmd.Stdout = stdout
-	cmd.Stderr = stderr
-	if err := cmd.Run(); err != nil {
-		if ctx.Err() != nil {
-			return fmt.Errorf("domain inventory: %w", ctx.Err())
-		}
+	if err := xl.StreamInventory(ctx, runner, stdout, stderr); err != nil {
 		return fmt.Errorf("domain inventory: %w", err)
 	}
 	return nil
