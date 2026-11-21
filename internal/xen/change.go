@@ -15,6 +15,7 @@ const (
 	BootDefinition
 	SetMemory
 	SetVCPUs
+	RenameGuest
 )
 
 type Change struct {
@@ -23,6 +24,7 @@ type Change struct {
 	// Target is the selected instance for an edit. SourceUUID identifies a clone source.
 	Target                  Identity
 	SourceUUID              string
+	NewName                 string
 	MemoryMiB, VCPUs        int64
 	Kernel, Initrd, Cmdline string
 }

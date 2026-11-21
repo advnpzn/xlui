@@ -49,6 +49,9 @@ func (w *workspace) guestMenu(h *liveSession) {
 		list.AddItem("Create guest", createHint, 'c', func() { w.guestForm(h, xen.CreateGuest, target) })
 		editable := selected && !target.ControlDomain && target.ID != 0
 		if pool {
+			if editable {
+				list.AddItem("Rename guest", tview.Escape(terminal.SingleLine(target.Name)), 'r', func() { w.guestForm(h, xen.RenameGuest, target) })
+			}
 			editable = editable && target.State == "Halted"
 		}
 		if editable {
@@ -78,7 +81,10 @@ func (w *workspace) guestForm(h *liveSession, kind xen.Action, target xen.Domain
 		f.AddInputField("Guest name", c.Name, 40, nil, func(s string) { c.Name = s })
 	}
 	mem, cpus := "512", "1"
-	if h.profile.Type == config.XAPI && create {
+	if kind == xen.RenameGuest {
+		c.NewName = target.Name
+		f.AddInputField("New pool display name", c.NewName, 40, nil, func(s string) { c.NewName = s })
+	} else if h.profile.Type == config.XAPI && create {
 		if !target.ControlDomain && target.State == "Halted" {
 			c.SourceUUID = target.UUID
 		}
@@ -103,6 +109,9 @@ func (w *workspace) guestForm(h *liveSession, kind xen.Action, target xen.Domain
 	}
 	back := func() { w.guestMenu(h) }
 	title := "EDIT GUEST"
+	if kind == xen.RenameGuest {
+		title = "RENAME GUEST"
+	}
 	if create {
 		title = "CREATE GUEST"
 	}

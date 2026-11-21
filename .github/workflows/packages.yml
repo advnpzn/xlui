@@ -2,13 +2,22 @@ name: Linux packages
 on:
   workflow_dispatch:
   push:
-    tags: ['v*']
+    tags: ['v[0-9]*']
 
 permissions:
   contents: read
 
+concurrency:
+  group: linux-packages-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
+  checks:
+    uses: ./.github/workflows/ci.yml
   packages:
+    needs: checks
+    permissions:
+      contents: write
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     env:
@@ -45,9 +54,8 @@ jobs:
           cmp "$RUNNER_TEMP/xlui-first-build.sha256" dist/SHA256SUMS
       - name: Verify binaries and package payloads
         run: bash packaging/verify-linux.sh "$RUNNER_TEMP/xlui-packages"
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: xlui-linux-${{ github.sha }}
-          path: ${{ runner.temp }}/xlui-packages/
-          if-no-files-found: error
-          compression-level: 0
+      - name: Attach verified packages and publish release notes
+        if: github.ref_type == 'tag' && startsWith(github.ref_name, 'v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash packaging/publish-release.sh "$RUNNER_TEMP/xlui-packages"

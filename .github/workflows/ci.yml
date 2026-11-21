@@ -1,23 +1,26 @@
-name: Verify requested revision d9561532
+name: Go
 on:
+  pull_request:
+    paths-ignore: ['**/*.md']
   push:
-    branches: [verify/operator-changes-on-demand]
+    branches: [master]
+    paths-ignore: ['**/*.md']
+  workflow_call:
+  workflow_dispatch:
 permissions:
   contents: read
 jobs:
-  inventory:
+  test:
+    name: Unit tests and static builds
     runs-on: ubuntu-24.04
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
-          ref: d95615326e9b08c8267f2efddf30a1d6994367d8
-      - name: Verify checkout
-        run: test "$(git rev-parse HEAD)" = d95615326e9b08c8267f2efddf30a1d6994367d8
       - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
-          go-version: stable
-          check-latest: true
+          go-version: '1.27.4'
           cache: false
       - name: Check formatting and module metadata
         run: |
@@ -35,6 +38,7 @@ jobs:
         run: |
           for arch in amd64 arm64; do
             CGO_ENABLED=0 GOOS=linux GOARCH="$arch" go build -trimpath -o "xlui-linux-$arch" ./cmd/xlui
-            if readelf -l "xlui-linux-$arch" | grep -q INTERP; then exit 1; fi
-            if readelf -d "xlui-linux-$arch" | grep -q NEEDED; then exit 1; fi
+            segments=$(readelf -lW "xlui-linux-$arch")
+            dynamic=$(readelf -dW "xlui-linux-$arch")
+            [[ "$segments" != *INTERP* && "$dynamic" != *NEEDED* ]]
           done

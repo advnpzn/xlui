@@ -4,7 +4,20 @@ xlui is a **terminal user interface (TUI) for Xen**. Monitor multiple Xen hosts,
 
 ## Installation
 
-Open **Actions → Linux packages → Run workflow**, or select a build for a version tag. Download the `xlui-linux-<commit>` artifact and extract its ZIP. It contains static Linux binaries, DEB and RPM packages for amd64 and arm64, and `SHA256SUMS`. From the extracted directory, verify the files with `sha256sum -c SHA256SUMS`. Install the package for your machine with your distribution's package manager, or run `chmod +x xlui-linux-arm64` before using the standalone ARM binary. For x86-64 use `xlui-linux-amd64`.
+Open the release you want and download `SHA256SUMS` and one Linux file from **Assets** into an empty directory. Use `uname -m` to identify your architecture. [GitHub Releases](https://github.com/advnpzn/xlui/releases)
+
+| `uname -m` | Debian or Ubuntu | Fedora or RHEL | Standalone binary |
+| --- | --- | --- | --- |
+| `x86_64` | `*_amd64.deb` | `*.x86_64.rpm` | `xlui-linux-amd64` |
+| `aarch64` | `*_arm64.deb` | `*.aarch64.rpm` | `xlui-linux-arm64` |
+
+From that directory, run `sha256sum --check --ignore-missing SHA256SUMS`. Once your file reports `OK`, use the command for your download.
+
+| Download | Install |
+| --- | --- |
+| DEB | `sudo apt install ./xlui_*.deb` |
+| RPM | `sudo dnf install ./xlui-*.rpm` |
+| Standalone | `sudo install -m 0755 xlui-linux-* /usr/local/bin/xlui` |
 
 To install from source on Linux, use Git and Go 1.25.0 or newer. Use Git credentials with access to the repository.
 
@@ -73,6 +86,8 @@ Press **g** or click **Guests**. Select an action, fill in the form, and choose 
 | --- | --- | --- |
 | Local Dom0 or SSH | **Create guest** saves `/etc/xen/<name>.cfg` and starts a Linux guest using a kernel and self-contained initramfs already on Dom0. For disk-backed guests or custom networking, use **Start from saved definition** with a prepared Xen configuration. | Select a guest or open its saved definition by name. Changes apply the next time the guest is created from the file. |
 | XenAPI | Select a halted guest, choose **Create guest**, and give the clone a new name. You can also enter the source UUID. The pool returns a new halted VM. | Select a halted VM. Set startup vCPUs within its configured maximum, or set a fixed memory target within its static limits. |
+
+On a XenAPI connection, select a guest and choose **Guests → Rename guest** to change its pool display name. The preview shows the current name, proposed name and VM UUID. The change takes effect immediately and leaves the guest OS hostname and power state alone.
 
 On Dom0, the account needs permission to run `xl` and work in `/etc/xen`. The write path uses `sh`, `flock` and GNU coreutils. Existing files must have a matching guest name and an explicit guest UUID. Edits support single-line assignments and an explicit decimal `memory` or `vcpus` field. Other fields and comments are preserved. Starting a saved definition uses the host's JSON `xl create -n` output and its configured disks and devices. Use a XenAPI session for a pool-managed host.
 
