@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/advnpzn/xlui/internal/session"
 	"github.com/advnpzn/xlui/internal/terminal"
@@ -13,16 +14,18 @@ import (
 // The inspector keeps two histories for one instance. Closing the inspector
 // releases both and a different selection always starts with fresh histories.
 type inspector struct {
-	key      domainKey
-	domain   xen.Domain
-	cpu      widgets.Series
-	memory   widgets.Series
-	sequence uint64
-	rate     string
-	gone     bool
-	dirty    bool
-	width    int
-	view     *tview.TextView
+	key        domainKey
+	domain     xen.Domain
+	cpu        widgets.Series
+	memory     widgets.Series
+	sequence   uint64
+	observedAt time.Time
+	boot       time.Time // last known boot of the inspected instance
+	rate       string
+	gone       bool
+	dirty      bool
+	width      int
+	view       *tview.TextView
 }
 
 func newInspector(key domainKey, s session.Snapshot) *inspector {
@@ -46,7 +49,15 @@ func (i *inspector) observe(s session.Snapshot) {
 	i.dirty = true
 	for _, d := range s.Domains {
 		if keyOf(d) == i.key {
+			if !d.StartedAt.IsZero() && !d.StartedAt.After(s.ObservedAt) {
+				if !i.boot.IsZero() && !i.boot.Equal(d.StartedAt) {
+					i.gone = true
+					return
+				}
+				i.boot = d.StartedAt
+			}
 			i.domain = d
+			i.observedAt = s.ObservedAt
 			pct, ok := s.CPUPercent(d)
 			i.rate = percent(pct, ok)
 			i.cpu.Push(pct, ok)
@@ -74,7 +85,12 @@ func (i *inspector) render(width int) *tview.TextView {
 	if d.CPUSeconds >= 0 {
 		duration = fmt.Sprintf("%.1f s", d.CPUSeconds)
 	}
-	i.view.SetText(fmt.Sprintf("%s\n\nUUID       %s\nID         %s\nState      %s\nAllocated  %s\nGuest used %s\nvCPUs      %s\nCPU load   %s (100%% = one core)\nCPU time   %s\n\nCPU      %s\n%s\nMemory   %s\n%s\nLast %d samples while open | newest right | ? unavailable",
-		terminal.SingleLine(d.Name), terminal.SingleLine(d.UUID), number(d.ID), terminal.SingleLine(stateLabel(d.State)), memoryLabel(float64(d.MemoryMiB)), guestMemory(d), number(d.VCPUs), i.rate, duration, cpuScale, cpuLine, memScale, memLine, widgets.Window))
+	boot := ""
+	if !d.StartedAt.IsZero() && !d.StartedAt.After(i.observedAt) {
+		uptime := i.observedAt.Sub(d.StartedAt).Truncate(time.Second)
+		boot = fmt.Sprintf("\nStarted    %s\nUptime     %s", d.StartedAt.UTC().Format(time.RFC3339), uptime)
+	}
+	i.view.SetText(fmt.Sprintf("%s\n\nUUID       %s\nID         %s\nState      %s%s\nAllocated  %s\nGuest used %s\nvCPUs      %s\nCPU load   %s (100%% = one core)\nCPU time   %s\n\nCPU      %s\n%s\nMemory   %s\n%s\nLast %d samples while open | newest right | ? unavailable",
+		terminal.SingleLine(d.Name), terminal.SingleLine(d.UUID), number(d.ID), terminal.SingleLine(stateLabel(d.State)), boot, memoryLabel(float64(d.MemoryMiB)), guestMemory(d), number(d.VCPUs), i.rate, duration, cpuScale, cpuLine, memScale, memLine, widgets.Window))
 	return i.view
 }

@@ -2,7 +2,6 @@ package xapi
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"slices"
@@ -26,15 +25,11 @@ func shutdownEligible(ref string, vm vmRecord, id int) bool {
 
 // The pool owns a VM across boots. Bind a power action to the running guest
 // observed on one host, including its metrics start time and session epoch.
-func (m *Monitor) shutdownInstance(ref string, vm vmRecord, id int, start json.RawMessage) string {
-	if !shutdownEligible(ref, vm, id) {
+func (m *Monitor) shutdownInstance(ref string, vm vmRecord, id int, start time.Time) string {
+	if !shutdownEligible(ref, vm, id) || start.IsZero() {
 		return ""
 	}
-	t := bootTime(start)
-	if t.IsZero() {
-		return ""
-	}
-	return fmt.Sprintf("%d/%q/%q/%q/%d/%s", m.epoch, ref, vm.Resident, vm.Metrics, id, t.Format(time.RFC3339Nano))
+	return fmt.Sprintf("%d/%q/%q/%q/%d/%s", m.epoch, ref, vm.Resident, vm.Metrics, id, start.Format(time.RFC3339Nano))
 }
 
 // Caller owns the monitor lock for the inventory, metrics and session reads.
@@ -58,7 +53,7 @@ func (m *Monitor) shutdownTarget(ctx context.Context, c xen.Change) (string, err
 		if err := m.rpc.call(ctx, "VM_metrics.get_record", []string{m.session, vm.Metrics}, &live, inventoryLimit); err != nil {
 			return "", err
 		}
-		if m.shutdownInstance(ref, vm, id, live.Start) == c.Instance {
+		if m.shutdownInstance(ref, vm, id, bootTime(live.Start)) == c.Instance {
 			return ref, nil
 		}
 		break
