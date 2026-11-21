@@ -21,7 +21,9 @@ nfpms:
   - ids: [xlui]
     formats: [deb, rpm]
     bindir: /usr/bin
-    file_name_template: '{{ .ConventionalFileName }}'
+    # GitHub normalizes these characters in release asset names. Keep the
+    # checksum manifest and download names identical for prerelease versions.
+    file_name_template: '{{ replace (replace .ConventionalFileName "~" ".") "+" "." }}'
     maintainer: 'advnpzn <63637385+advnpzn@users.noreply.github.com>'
     homepage: https://github.com/advnpzn/xlui
     description: Terminal client for Xen domain inventory and monitoring

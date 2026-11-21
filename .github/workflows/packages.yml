@@ -1,6 +1,10 @@
 name: Linux packages
 on:
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Existing version tag to test, rebuild and publish (leave empty for a branch snapshot)
+        type: string
   push:
     tags: ['v[0-9]*']
 
@@ -8,12 +12,14 @@ permissions:
   contents: read
 
 concurrency:
-  group: linux-packages-${{ github.ref }}
+  group: linux-packages-${{ inputs.release_tag || github.ref_name }}
   cancel-in-progress: false
 
 jobs:
   checks:
     uses: ./.github/workflows/ci.yml
+    with:
+      source_ref: ${{ inputs.release_tag && format('refs/tags/{0}', inputs.release_tag) || github.sha }}
   packages:
     needs: checks
     permissions:
@@ -22,11 +28,19 @@ jobs:
     timeout-minutes: 30
     env:
       GOTOOLCHAIN: local
+      RELEASE_TAG: ${{ inputs.release_tag || (github.ref_type == 'tag' && github.ref_name) || '' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           persist-credentials: false
+      - name: Prepare release tooling and check out the tested source
+        env:
+          TESTED_SHA: ${{ needs.checks.outputs.tested_sha }}
+        run: |
+          mkdir "$RUNNER_TEMP/xlui-tooling"
+          cp .goreleaser.yaml packaging/{verify-linux,publish-release}.sh "$RUNNER_TEMP/xlui-tooling/"
+          git checkout --detach "$TESTED_SHA"
       - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
         with:
           go-version: '1.27.4'
@@ -44,18 +58,24 @@ jobs:
           set -euo pipefail
           export SOURCE_DATE_EPOCH
           SOURCE_DATE_EPOCH=$(git show -s --format=%ct HEAD)
-          goreleaser check
-          flags=(--clean --skip=publish)
-          if [[ "$GITHUB_REF_TYPE" != tag ]]; then flags+=(--snapshot); fi
+          config="$RUNNER_TEMP/xlui-tooling/.goreleaser.yaml"
+          goreleaser check --config "$config"
+          flags=(--config "$config" --clean --skip=publish)
+          if [[ -n "$RELEASE_TAG" ]]; then
+            [[ "$RELEASE_TAG" =~ ^v[0-9] ]]
+            export GORELEASER_CURRENT_TAG="$RELEASE_TAG"
+          else
+            flags+=(--snapshot)
+          fi
           GOCACHE="$RUNNER_TEMP/xlui-cache-1" goreleaser release "${flags[@]}"
           cp dist/SHA256SUMS "$RUNNER_TEMP/xlui-first-build.sha256"
           rm -r dist
           GOCACHE="$RUNNER_TEMP/xlui-cache-2" goreleaser release "${flags[@]}"
           cmp "$RUNNER_TEMP/xlui-first-build.sha256" dist/SHA256SUMS
       - name: Verify binaries and package payloads
-        run: bash packaging/verify-linux.sh "$RUNNER_TEMP/xlui-packages"
+        run: bash "$RUNNER_TEMP/xlui-tooling/verify-linux.sh" "$RUNNER_TEMP/xlui-packages"
       - name: Attach verified packages and publish release notes
-        if: github.ref_type == 'tag' && startsWith(github.ref_name, 'v')
+        if: env.RELEASE_TAG != ''
         env:
           GH_TOKEN: ${{ github.token }}
-        run: bash packaging/publish-release.sh "$RUNNER_TEMP/xlui-packages"
+        run: bash "$RUNNER_TEMP/xlui-tooling/publish-release.sh" "$RUNNER_TEMP/xlui-packages" "$RELEASE_TAG"

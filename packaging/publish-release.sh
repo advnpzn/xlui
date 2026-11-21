@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-assets=${1:?usage: bash packaging/publish-release.sh VERIFIED_DIRECTORY}
-tag=${GITHUB_REF_NAME:?missing release tag}
-[[ "$GITHUB_REF_TYPE" == tag && "$tag" =~ ^v[0-9] ]]
+assets=${1:?missing verified asset directory}
+tag=${2:?missing release tag}
+[[ "$tag" =~ ^v[0-9] ]]
 commit=$(git rev-parse HEAD)
 remote_commit=$(gh api "repos/{owner}/{repo}/commits/$tag" --jq .sha)
 if [[ "$remote_commit" != "$commit" ]]; then
