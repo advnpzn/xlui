@@ -1,0 +1,23 @@
+name: Go
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  inventory:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: false
+      - run: go test ./...
+      - run: go vet ./...
+      - name: Build static Linux clients
+        shell: bash
+        run: |
+          for arch in amd64 arm64; do
+            CGO_ENABLED=0 GOOS=linux GOARCH="$arch" go build -trimpath -o "xlui-linux-$arch" ./cmd/xlui
+            if readelf -l "xlui-linux-$arch" | grep -q INTERP; then exit 1; fi
+            if readelf -d "xlui-linux-$arch" | grep -q NEEDED; then exit 1; fi
+          done
