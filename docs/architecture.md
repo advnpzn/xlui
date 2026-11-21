@@ -4,17 +4,18 @@ xlui has one Go module and one operator executable. A Linux workstation connecte
 
 ## Current code
 
-`cmd/xlui` parses the command line and constructs a runner. Its local and remote `list` paths both call `xl.StreamInventory` in `internal/xen/xl`. That function selects `xl list -v` and streams its output. The runner in `internal/transport` handles local process execution or OpenSSH. CLI tests exercise both paths. CI tests and vets the module and checks static Linux builds for amd64 and arm64.
+`cmd/xlui` selects the provider. Plain-Xen inventory calls `xl.StreamInventory`; `internal/transport` runs `xl list -v` locally or through OpenSSH. Explicit `--xapi` contexts use `internal/xen/xapi` for pool-wide VM inventory over HTTPS. That provider handles the RPC session and bulk query. Its CLI presenter sorts and formats records. CI tests and vets the module and checks static Linux builds for amd64 and arm64.
 
 ## Package map
 
-The three packages above exist today. The remaining entries define where the corresponding features belong when implemented. See the [TUI component and session design](tui.md) for screen composition, Go interfaces and ownership of state.
+The packages described above exist today. The remaining entries define where the corresponding features belong when implemented. See the [TUI component and session design](tui.md) for screen composition, Go interfaces and ownership of state.
 
 | Path | Responsibility |
 | --- | --- |
 | `cmd/xlui/` | Parse CLI flags, handle process signals and exit codes, select a context and wire concrete dependencies. Preserve the existing headless `list` command and its streamed output. |
 | `internal/xen/` | Define the shared vocabulary for host and domain identities, snapshots, observations, capabilities and typed actions. Keep it independent of terminal widgets, process execution and serialization formats. |
 | `internal/xen/xl/` | Implement the plain-Xen provider. Choose Xen tool invocations, recognize supported output, parse domain state and translate typed actions into validated arguments. Keep anonymized tool output under this package's `testdata/`. |
+| `internal/xen/xapi/` | Read pool inventory from the configured XAPI authority. Own JSON-RPC, session lifetime and decoding. |
 | `internal/transport/` | Execute a command on local Dom0 or through OpenSSH. Own cancellation, remote-shell argument encoding, connection reuse, stderr and exit status. Give an interactive console an explicit PTY path. |
 | `internal/session/` | Own one active host session, its refresh schedule, published snapshots, bounded metric histories and pending actions. Define small interfaces here for the provider operations this package consumes. |
 | `internal/tui/` | Compose Xen screens, handle navigation, and bind typed session data to the terminal. Keep reusable presentation behavior in `internal/tui/widgets/`. Use tview over tcell, with asciigraph planned for expanded plots. |
@@ -36,7 +37,7 @@ The session owns the mutable sample history. Publish immutable snapshots and coa
 | --- | --- |
 | Offline replay | Add `internal/capture/` for a versioned capture format and read-only replay provider. It feeds the same views and supplies sample timestamps. |
 | Managed HTTP API | Add `internal/api/` when implementing service mode. Its handlers authenticate and authorize the caller and use the same session operations. Agentless SSH remains a complete deployment choice on plain Xen. A configured API connection must fail closed. |
-| Another management stack | Add a sibling provider under `internal/xen/` for an owning stack such as XAPI or libvirt. Advertise supported reads and actions per target. An XAPI-managed host must never fall back to direct xl writes. |
+| Another management stack | Follow the XAPI package pattern for another owning stack such as libvirt. Advertise supported reads and actions per target. An XAPI-managed host must never fall back to direct xl writes. |
 | Releases and image integration | Put release automation in `.github/workflows/` and binary target and DEB/RPM definitions in `.goreleaser.yaml`. Build one static Go binary per target. DEB and RPM wrap that same binary. Keep the OpenEmbedded layer in `packaging/yocto/meta-xlui/`, with a pinned-source recipe for the image build. Architecture and distro differences belong in build inputs, fixtures or packaging. |
 
 For an automotive bench, an edge board and a homelab server, a missing helper or a restricted account changes the capabilities of a context. It does not justify a separate source tree. Move code behind a new provider only when the management authority or operation semantics change.

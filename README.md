@@ -1,6 +1,6 @@
 # xlui
 
-This development snapshot implements a read-only domain inventory command for a local Xen control domain or a remote one reached through OpenSSH. It streams the host's verbose xl listing and preserves command failures. This snapshot has no interactive TUI or mutation commands.
+xlui provides read-only inventory for plain Xen hosts and XenAPI pools. The plain-Xen command streams the host's verbose xl listing locally or through OpenSSH.
 
 Build with Go 1.22 or newer on Linux.
 
@@ -12,6 +12,18 @@ CGO_ENABLED=0 go build -o xlui ./cmd/xlui
 ```
 
 The remote host needs a functioning xl installation and an account permitted to list domains. The workstation needs an OpenSSH client. SSH config aliases can carry port and jump host settings. The local command uses the current account and environment to run xl. No automatic privilege escalation is performed.
+
+## XAPI pool inventory
+
+Point `--xapi` at the HTTPS pool coordinator and use an account permitted to read VM records. In Bash, enter the password at the prompt and pass it only to xlui.
+
+```bash
+read -rs -p 'XAPI password: ' pool_password && echo
+XLUI_XAPI_PASSWORD="$pool_password" ./xlui --xapi https://pool.example --xapi-user viewer list
+unset pool_password
+```
+
+System certificate roots are used by default. Add `--xapi-ca pool-ca.pem` for a private CA. A single `VM.get_all_records` call lists running and halted VMs across the pool, identifies control domains, and filters templates and snapshots. Login and logout each cost one additional request. The client requires XenAPI JSON-RPC 2.0 at `/jsonrpc` and accepts inventory responses up to 32 MiB. Tests exercise a TLS fixture server. Compatibility with individual XCP-ng and XenServer releases still needs a live pool test.
 
 ## Working on xlui
 
