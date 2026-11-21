@@ -30,7 +30,8 @@ echo "BBLAYERS += \"$layer\"" >> conf/bblayers.conf
 # Fetch is the only task that should require the network.
 bitbake -b "$recipe" -c fetch
 echo 'BB_NO_NETWORK = "1"' >> conf/local.conf
-bitbake -b "$recipe" -c compile
+# go-mod schedules compile before the dependency license checks.
+bitbake -b "$recipe" -c populate_lic
 
 # The install body copies a single binary and needs no fakeroot ownership.
 bitbake-getvar -r xlui --value do_install | bash -eu
