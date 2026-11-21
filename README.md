@@ -1,6 +1,6 @@
 # xlui
 
-xlui is a keyboard-driven **terminal user interface (TUI) for Xen**. Browse a live domain list, filter guests and inspect their state, memory, vCPUs and CPU time. Run the TUI in Dom0 or connect to a Xen host over SSH from a Linux workstation.
+xlui is a **terminal user interface (TUI) for Xen** with keyboard and mouse controls. Browse a live domain list, filter guests and inspect their state, memory, vCPUs and CPU time. Run the TUI in Dom0 or connect to a Xen host over SSH from a Linux workstation.
 
 ## Installation
 
@@ -38,16 +38,18 @@ ssh -o BatchMode=yes -o StrictHostKeyChecking=yes bench xl list -v
 
 Run `xlui` to open the local domain list, or `xlui --host bench` to use the SSH alias above.
 
-| Action | Keys |
-| --- | --- |
-| Select a domain | ↑ / ↓ |
-| Open the selected domain’s inspector | Enter |
-| Scroll the inspector | ↑ / ↓ or Page Up / Page Down |
-| Return to the list | Esc |
-| Filter the list | `/`, then type a name, ID, UUID or state |
-| Apply or cancel a filter edit | Enter to apply, Esc to cancel |
-| Clear the applied filter | Esc in the list |
-| Quit | `q` outside the filter editor, or Ctrl+C anywhere |
+Mouse controls are enabled automatically in terminals that support mouse reporting. The buttons at the bottom of the screen also show their keyboard shortcuts.
+
+| Action | Keyboard | Mouse |
+| --- | --- | --- |
+| Select a domain | ↑ / ↓ | Click its row |
+| Open the inspector | Enter | Double-click a row or click **Inspect** |
+| Scroll the list or inspector | ↑ / ↓ or Page Up / Page Down | Scroll the wheel over the list or inspector |
+| Return to the list | Esc | Click **Back** |
+| Filter by name, ID, UUID or state | `/`, then type | Click **Filter**, then type |
+| Apply or cancel a filter edit | Enter / Esc | Click **Apply** or **Cancel** |
+| Clear the applied filter | Esc in the list | Click **Clear** |
+| Quit | `q` outside the filter editor, or Ctrl+C anywhere | Click **Quit** |
 
 The list refreshes five seconds after each collection. Use `xlui --host bench --interval 10s` to change the delay. If a refresh fails, **Stale** and a timestamp identify the last successful sample. CPU time is cumulative across vCPUs and is measured in seconds.
 

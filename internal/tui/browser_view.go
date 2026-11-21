@@ -1,8 +1,6 @@
 package tui
 
 import (
-	"fmt"
-
 	"github.com/advnpzn/xlui/internal/terminal"
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
@@ -57,29 +55,15 @@ func (b *browser) draw(screen tcell.Screen) {
 		return
 	}
 	content := tview.Primitive(b.table)
-	help := fmt.Sprintf("%d/%d domains   ↑↓ select   / filter   Enter inspect   q quit", len(b.rows.visible), len(b.rows.all))
 	if b.inspect != nil {
 		content = b.detail
-		help = "Esc back   ↑↓ scroll   q quit"
-	} else {
-		if len(b.rows.visible) == 0 {
-			content = b.message.SetText(b.emptyMessage())
-		}
-		if query := b.filter.GetText(); query != "" {
-			help = fmt.Sprintf("%d/%d   Esc clear   / edit   Enter inspect   q quit   Filter: %s", len(b.rows.visible), len(b.rows.all), terminal.SingleLine(query))
-		}
+	} else if len(b.rows.visible) == 0 {
+		content = b.message.SetText(b.emptyMessage())
 	}
 	if height > 2 {
 		content.SetRect(0, 1, width, height-2)
 		content.Draw(screen)
 	}
-	if b.edit != nil {
-		b.filter.SetRect(0, height-1, width, 1)
-		b.filter.Draw(screen)
-	} else {
-		b.footer.SetText(help)
-		b.footer.SetRect(0, height-1, width, 1)
-		b.footer.Draw(screen)
-	}
+	b.drawFooter(screen, width, height-1)
 	screen.Show()
 }

@@ -27,6 +27,8 @@ type browser struct {
 	filter    *tview.InputField
 	header    *tview.TextView
 	footer    *tview.TextView
+	buttons   []footerButton
+	pointer   pointerState
 	detail    *tview.TextView
 	message   *tview.TextView
 	inspect   *domainKey
@@ -101,7 +103,10 @@ func (b *browser) project(selected domainKey, initial bool) {
 	if initial && len(visible) > 0 {
 		row = 1
 	}
-	b.table.SetSelectable(row > 0, false).Select(row, 0)
+	b.table.SetSelectable(row > 0, false)
+	if current, _ := b.table.GetSelection(); current != row {
+		b.table.Select(row, 0)
+	}
 }
 
 func (b *browser) updateDetail() {

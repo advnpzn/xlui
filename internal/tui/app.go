@@ -29,6 +29,8 @@ func runScreen(ctx context.Context, screen tcell.Screen, host string, interval t
 		return err
 	}
 	defer inventory.Close()
+	screen.EnableMouse(tcell.MouseButtonEvents)
+	defer screen.DisableMouse()
 
 	events := make(chan tcell.Event)
 	quitEvents := make(chan struct{})
@@ -57,10 +59,17 @@ func runScreen(ctx context.Context, screen tcell.Screen, host string, interval t
 			}
 			switch event := event.(type) {
 			case *tcell.EventKey:
+				b.pointer = pointerState{}
 				if b.key(event) {
 					return nil
 				}
+			case *tcell.EventMouse:
+				w, h := screen.Size()
+				if b.mouse(event, w, h) {
+					return nil
+				}
 			case *tcell.EventResize:
+				b.pointer = pointerState{}
 				screen.Clear()
 			case *tcell.EventError:
 				return event
