@@ -104,6 +104,7 @@ Mouse controls are enabled automatically in terminals that support mouse reporti
 | Create or edit a guest | `g` | Click **Guests** |
 | Manage connections | `s` | Click **Sessions** |
 | Switch open sessions | Tab | Click **Next** |
+| Open monitoring settings | `,` | Click **Settings** when visible |
 | Shorten or lengthen the monitoring interval | `-` / `+` | Click **[-]** or **[+]** in the header |
 | Select a domain | ↑ / ↓ | Click its row |
 | Cycle domain order | `o` | Click **Sort** |
@@ -117,7 +118,9 @@ Mouse controls are enabled automatically in terminals that support mouse reporti
 
 Press `o` to cycle through provider order, name, CPU load, allocated memory and guest-used memory. Resource readings sort highest first, with unavailable readings last. Each connection remembers its order while open. Sorting and filtering use the latest cached observation.
 
-Each session starts at **2000 ms**. Press `-` to refresh faster or `+` to refresh slower in 100 ms steps, down to 100 ms. The header shows the active session’s interval. Changes take effect in the dashboard and inspector and preserve chart history. Use `xlui --host bench --interval 500ms` to start sessions at a different interval. If collection takes longer than the selected interval, xlui skips missed polls. Charts advance as samples arrive.
+The built-in refresh interval is **2s**. Press `,` from the dashboard or inspector to enter an exact interval such as `750ms` or `5s`. **Apply** updates only the active session. **Apply + save default** also sets the starting interval for new sessions, including after a restart. xlui stores the default in `preferences.json` alongside the connection profiles. An explicit `--interval` takes precedence for new sessions in that run.
+
+Press `-` to refresh faster or `+` to refresh slower in 100 ms steps, down to 100 ms. The header shows the active session’s interval. Changes take effect in the dashboard and inspector and preserve chart history. Use `xlui --host bench --interval 500ms` to start sessions at a different interval. If collection takes longer than the selected interval, xlui skips missed polls. Charts advance as samples arrive.
 
 If a refresh fails, **Stale** and a timestamp identify the last successful sample. Open the inspector to see cumulative CPU time where available and up to 60 samples of CPU and allocated memory. Inspector charts start when opened and mark gaps with `?`.
 

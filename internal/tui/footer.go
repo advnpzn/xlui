@@ -59,6 +59,9 @@ func (b *browser) drawFooter(screen tcell.Screen, width, y int) {
 	case b.inspect != nil:
 		add("[Esc Back]", tcell.KeyEsc, 0)
 		add("[q Quit]", tcell.KeyRune, 'q')
+		if b.settings != nil {
+			add("[, Settings]", tcell.KeyRune, ',')
+		}
 		line.WriteString("↑↓ scroll")
 	default:
 		add("[/ Filter]", tcell.KeyRune, '/')
@@ -71,6 +74,9 @@ func (b *browser) drawFooter(screen tcell.Screen, width, y int) {
 		}
 		add("[q Quit]", tcell.KeyRune, 'q')
 		add("[o Sort]", tcell.KeyRune, 'o')
+		if b.settings != nil {
+			add("[, Settings]", tcell.KeyRune, ',')
+		}
 		fmt.Fprintf(&line, "%d/%d domains", len(b.rows.visible), len(b.rows.Domains))
 		if query != "" {
 			line.WriteString("   Filter: " + terminal.SingleLine(query))

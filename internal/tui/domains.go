@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/advnpzn/xlui/internal/config"
 	"github.com/advnpzn/xlui/internal/session"
 	"github.com/advnpzn/xlui/internal/terminal"
 	"github.com/advnpzn/xlui/internal/xen"
@@ -14,7 +15,7 @@ import (
 
 const (
 	DefaultInterval = 2 * time.Second
-	MinInterval     = 100 * time.Millisecond
+	MinInterval     = config.MinInterval
 	intervalStep    = 100 * time.Millisecond
 )
 
@@ -27,7 +28,7 @@ type browser struct {
 	inventory             *session.Inventory
 	openCount             int
 	sessions, nextSession func()
-	guests                func()
+	guests, settings      func()
 	host                  string
 	rows                  domainRows
 	table                 *tview.Table
@@ -166,6 +167,10 @@ func (b *browser) key(ev *tcell.EventKey) bool {
 			b.inventory.SetInterval(min(time.Duration(math.MaxInt64)-intervalStep, b.inventory.Interval()) + intervalStep)
 			return false
 		}
+	}
+	if ev.Key() == tcell.KeyRune && ev.Rune() == ',' && b.settings != nil {
+		b.settings()
+		return false
 	}
 	if ev.Key() == tcell.KeyRune && ev.Rune() == 'g' && b.guests != nil {
 		b.guests()

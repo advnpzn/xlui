@@ -1,19 +1,13 @@
-// Package config stores the operator's named connections. Credentials stay with
+// Package config stores the operator's named connections and preferences. Credentials stay with
 // OpenSSH or in the running process.
 package config
 
 import (
-	"bytes"
-	"encoding/json"
 	"errors"
-	"fmt"
-	"io"
-
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
-	"syscall"
 	"unicode"
 
 	"github.com/advnpzn/xlui/internal/transport"
@@ -81,20 +75,15 @@ func UserStore() (Store, error) {
 }
 
 func (s Store) Load() ([]Profile, error) {
-	data, err := ReadFile(s.Path, 1<<20)
+	var cfg settings
+	err := readJSON(s.Path, &cfg)
 	if errors.Is(err, os.ErrNotExist) {
 		return nil, nil
 	}
 	if err != nil {
 		return nil, err
 	}
-	var cfg settings
-	dec := json.NewDecoder(bytes.NewReader(data))
-	dec.DisallowUnknownFields()
-	if err := dec.Decode(&cfg); err != nil {
-		return nil, fmt.Errorf("read xlui configuration: %w", err)
-	}
-	if dec.Decode(new(any)) != io.EOF || cfg.Version != 1 {
+	if cfg.Version != 1 {
 		return nil, errors.New("invalid or unsupported xlui configuration")
 	}
 	seen := map[string]bool{}
@@ -116,18 +105,11 @@ func (s Store) Save(before *Profile, after Profile) ([]Profile, error) {
 	if err := after.Validate(); err != nil {
 		return nil, err
 	}
-	dir := filepath.Dir(s.Path)
-	if err := os.MkdirAll(dir, 0700); err != nil {
-		return nil, err
-	}
-	lock, err := os.OpenFile(s.Path+".lock", os.O_CREATE|os.O_RDWR|syscall.O_NOFOLLOW, 0600)
+	lock, err := lockConfig(s.Path)
 	if err != nil {
 		return nil, err
 	}
 	defer lock.Close()
-	if err = syscall.Flock(int(lock.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err != nil {
-		return nil, fmt.Errorf("configuration busy: %w", err)
-	}
 	profiles, err := s.Load()
 	if err != nil {
 		return nil, err
@@ -149,26 +131,7 @@ func (s Store) Save(before *Profile, after Profile) ([]Profile, error) {
 	} else {
 		profiles[index] = after
 	}
-	data, err := json.MarshalIndent(settings{1, profiles}, "", "  ")
-	if err != nil {
-		return nil, err
-	}
-	if len(data)+1 > 1<<20 {
-		return nil, errors.New("configuration exceeds 1 MiB")
-	}
-	tmp, err := os.CreateTemp(dir, ".connections-*")
-	if err != nil {
-		return nil, err
-	}
-	defer os.Remove(tmp.Name())
-	_, err = tmp.Write(append(data, '\n'))
-	if err == nil {
-		err = tmp.Sync()
-	}
-	if err = errors.Join(err, tmp.Close()); err != nil {
-		return nil, err
-	}
-	if err = os.Rename(tmp.Name(), s.Path); err != nil {
+	if err := writeJSON(s.Path, settings{1, profiles}); err != nil {
 		return nil, err
 	}
 	return profiles, nil
