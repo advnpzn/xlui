@@ -1,7 +1,6 @@
 package tui
 
 import (
-	"fmt"
 	"strconv"
 	"strings"
 	"time"
@@ -29,9 +28,8 @@ type browser struct {
 	footer    *tview.TextView
 	buttons   []footerButton
 	pointer   pointerState
-	detail    *tview.TextView
 	message   *tview.TextView
-	inspect   *domainKey
+	inspect   *inspector
 	edit      *filterEdit
 	latest    time.Time
 	lastError error
@@ -50,7 +48,6 @@ func newBrowser(host string) *browser {
 		filter:  tview.NewInputField().SetLabel("Filter  "),
 		header:  tview.NewTextView().SetWrap(false),
 		footer:  tview.NewTextView().SetWrap(false),
-		detail:  tview.NewTextView().ScrollToBeginning(),
 		message: tview.NewTextView().SetWordWrap(true).ScrollToBeginning(),
 	}
 	b.table.SetContent(&b.rows)
@@ -66,29 +63,29 @@ func (b *browser) selected() (domainKey, bool) {
 	if row < 1 || row > len(b.rows.visible) {
 		return domainKey{}, false
 	}
-	return keyOf(b.rows.all[b.rows.visible[row-1]]), true
+	return keyOf(b.rows.Domains[b.rows.visible[row-1]]), true
 }
 
 func (b *browser) update(s session.Snapshot) {
 	b.lastError = s.Err
+	selected, _ := b.selected()
+	b.rows.Snapshot = s
+	if b.inspect != nil {
+		b.inspect.observe(s)
+	}
 	if s.ObservedAt.Equal(b.latest) {
 		return
 	}
-	selected, _ := b.selected()
 	initial := b.latest.IsZero()
-	b.rows.all = s.Domains
 	b.latest = s.ObservedAt
 	b.project(selected, initial)
-	if b.inspect != nil {
-		b.updateDetail()
-	}
 }
 
 func (b *browser) project(selected domainKey, initial bool) {
 	query := strings.ToLower(b.filter.GetText())
 	visible := b.rows.visible[:0]
 	row := 0
-	for i, d := range b.rows.all {
+	for i, d := range b.rows.Domains {
 		if query != "" && !strings.Contains(strings.ToLower(d.Name), query) &&
 			!strings.Contains(strings.ToLower(d.State), query) &&
 			!strings.Contains(strings.ToLower(d.UUID), query) && !strings.Contains(strconv.Itoa(d.ID), query) {
@@ -106,17 +103,6 @@ func (b *browser) project(selected domainKey, initial bool) {
 	b.table.SetSelectable(row > 0, false)
 	if current, _ := b.table.GetSelection(); current != row {
 		b.table.Select(row, 0)
-	}
-}
-
-func (b *browser) updateDetail() {
-	b.detail.SetText("This domain instance is no longer in the inventory.")
-	for _, d := range b.rows.all {
-		if keyOf(d) == *b.inspect {
-			b.detail.SetText(fmt.Sprintf("%s\n\nUUID     %s\nID       %d\nState    %s\nMemory   %d MiB\nvCPUs    %d\nCPU time %.1f s",
-				terminal.SingleLine(d.Name), terminal.SingleLine(d.UUID), d.ID, terminal.SingleLine(d.State), d.MemoryMiB, d.VCPUs, d.CPUSeconds))
-			return
-		}
 	}
 }
 
@@ -146,7 +132,7 @@ func (b *browser) key(ev *tcell.EventKey) bool {
 		if ev.Key() == tcell.KeyEsc {
 			b.inspect = nil
 		} else {
-			b.detail.InputHandler()(ev, nil)
+			b.inspect.view.InputHandler()(ev, nil)
 		}
 		return false
 	}
@@ -155,9 +141,7 @@ func (b *browser) key(ev *tcell.EventKey) bool {
 		b.filter.SetText("")
 	case tcell.KeyEnter:
 		if key, ok := b.selected(); ok {
-			b.inspect = &key
-			b.updateDetail()
-			b.detail.ScrollToBeginning()
+			b.inspect = newInspector(key, b.rows.Snapshot)
 		}
 	case tcell.KeyRune:
 		if ev.Rune() == '/' {

@@ -51,7 +51,7 @@ Mouse controls are enabled automatically in terminals that support mouse reporti
 | Clear the applied filter | Esc in the list | Click **Clear** |
 | Quit | `q` outside the filter editor, or Ctrl+C anywhere | Click **Quit** |
 
-The list refreshes five seconds after each collection. Use `xlui --host bench --interval 10s` to change the delay. If a refresh fails, **Stale** and a timestamp identify the last successful sample. CPU time is cumulative across vCPUs and is measured in seconds.
+The list refreshes five seconds after each collection. Use `xlui --host bench --interval 10s` to change the delay. If a refresh fails, **Stale** and a timestamp identify the last successful sample. The CPU column estimates utilization from successive CPU-time readings. One fully busy logical CPU is 100%, and a multi-vCPU guest can exceed 100%. A missing baseline, failed refresh or counter reset displays as `--`. Open a domain to see its cumulative CPU seconds and up to 60 samples of CPU and allocated memory. Charts start when the inspector opens and show gaps as `?`.
 
 ## Headless inventory
 
