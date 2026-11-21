@@ -169,3 +169,11 @@ func confirmedEdit(t *testing.T, target xen.Domain, shortcut, input rune, title 
 	}
 	return <-applied
 }
+
+func TestStartPoolGuestNeedsExplicitApply(t *testing.T) {
+	target := xen.Domain{Name: "guest", UUID: "11111111-1111-4111-8111-111111111111", ID: -1, State: "Halted", StartTarget: "halted-guest"}
+	got := confirmedEdit(t, target, 's', 0, "GUESTS")
+	if got.Target != target.Identity() || got.Name != target.Name || got.Instance != target.StartTarget || got.Action != xen.StartGuest {
+		t.Fatalf("wrong start target: %+v", got)
+	}
+}

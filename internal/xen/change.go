@@ -17,6 +17,7 @@ const (
 	SetVCPUs
 	RenameGuest
 	GracefulShutdown
+	StartGuest
 )
 
 type Change struct {
@@ -24,7 +25,7 @@ type Change struct {
 	Name   string
 	// Target is the selected instance for an edit. SourceUUID identifies a clone source.
 	Target                  Identity
-	Instance                string // opaque provider evidence for a running instance
+	Instance                string // opaque provider evidence for the selected power action
 	SourceUUID              string
 	NewName                 string
 	MemoryMiB, VCPUs        int64

@@ -78,7 +78,7 @@ func (m definitions) file(ctx context.Context, mode, name, digest, data string, 
 func (m definitions) prepare(ctx context.Context, c xen.Change) (xen.Plan, error) {
 	switch c.Action {
 	case xen.CreateGuest, xen.BootDefinition, xen.SetMemory, xen.SetVCPUs:
-	case xen.RenameGuest, xen.GracefulShutdown:
+	case xen.RenameGuest, xen.GracefulShutdown, xen.StartGuest:
 		return xen.Plan{}, errors.New("this guest action is available on XenAPI connections only")
 	default:
 		return xen.Plan{}, errors.New("unsupported xl guest action")

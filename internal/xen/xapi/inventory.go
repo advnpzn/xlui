@@ -71,7 +71,7 @@ type Monitor struct {
 	mu                          sync.Mutex
 	writeMu                     sync.Mutex
 	epoch                       uint64
-	rpc, shutdownRPC            *rpcClient
+	rpc, powerRPC               *rpcClient
 	username, password, session string
 	loginErr                    error
 }
@@ -84,7 +84,7 @@ func NewMonitor(endpoint, username, password string, client *http.Client) (*Moni
 	if client == nil {
 		client = http.DefaultClient
 	}
-	// A cooperative guest shutdown can outlast the inventory RPC deadline.
+	// A guest power operation can outlast the inventory RPC deadline.
 	// Both clients share the verified transport and honor a shorter caller timeout.
 	newRPC := func(maxWait time.Duration) *rpcClient {
 		timeout := client.Timeout
@@ -99,7 +99,7 @@ func NewMonitor(endpoint, username, password string, client *http.Client) (*Moni
 			},
 		}}
 	}
-	return &Monitor{rpc: newRPC(30 * time.Second), shutdownRPC: newRPC(2 * time.Minute), username: username, password: password}, nil
+	return &Monitor{rpc: newRPC(30 * time.Second), powerRPC: newRPC(2 * time.Minute), username: username, password: password}, nil
 }
 
 // ParseEndpoint checks the authority and fixes the path used for JSON-RPC.
