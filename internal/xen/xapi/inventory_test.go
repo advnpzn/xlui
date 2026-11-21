@@ -52,7 +52,7 @@ func xenServer(t *testing.T, steps ...rpcStep) *httptest.Server {
 			Version string          `json:"jsonrpc"`
 			ID      json.RawMessage `json:"id"`
 			Method  string          `json:"method"`
-			Params  []any        `json:"params"`
+			Params  []any           `json:"params"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			t.Error(err)
