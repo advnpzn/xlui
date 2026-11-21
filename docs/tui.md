@@ -2,13 +2,13 @@
 
 The terminal client has three responsibilities. Widgets handle reusable terminal interactions. Screens give those interactions meaning for a Xen operator. A host session supplies observations and executes typed requests. These are internal packages in the xlui Go module. The headless interface and a future managed API can use the same session with no terminal dependencies.
 
-This is the design for the interactive client. The current executable supports the headless inventory command.
+The current browser implements plain-Xen inventory, filtering, inspection of the selected observation, and configurable sampling. It uses tview widgets on a single tcell event loop. The remainder describes the target design, including on-demand device inspection, charts, settings and actions.
 
 ## Where code belongs
 
 | Planned location | What belongs there | Example |
 | --- | --- | --- |
-| `internal/tui/app.go` | tview application, focus, screen stack, global keys and scheduling redraws | Esc dismisses the active dialog and restores focus. |
+| `internal/tui/app.go` | Terminal lifecycle, focus, screen navigation, global keys and redraws | Esc returns from the domain inspector to the table. |
 | `internal/tui/domains.go`, `inspector.go`, `settings.go` | Xen-specific screen composition, screen-local state and mapping between observations and display values | The domains screen formats allocated MiB, maps a selected row to a domain reference and opens the inspector. |
 | `internal/tui/widgets/` | Reusable interactions with concrete inputs and callbacks | A selectable table takes column definitions and rows with stable keys. A time-series plot takes timestamped points, gaps and a unit label. |
 | `internal/tui/ports.go` | Small Go interfaces required by the screens | An inventory subscriber can draw the table. An inspector additionally needs a detail reader. Only an action flow needs write methods. |
@@ -51,7 +51,7 @@ The subscriber receives the latest snapshot immediately when available. Each sna
 ## State and concurrency
 
 - **Widgets** own cursor position, scrolling and focus. **Screens** own filter text, sort order, the selected domain reference and navigation state. **The session** owns host identity, capabilities, observations and pending operations. Selection and action targets use host-scoped instance evidence. Names, row indices and domids alone are insufficient.
-- Keep the tview event loop free of collection, SSH and filesystem I/O. Background work publishes immutable data. Schedule UI changes with tview's event-loop mechanism and coalesce pending redraws. A slow terminal can skip an intermediate frame. Render host-supplied text as literal content.
+- Keep the terminal event loop free of collection, SSH and filesystem I/O. Background work publishes immutable data. The tcell event loop consumes updates and draws tview widgets on one goroutine. A slow terminal can skip an intermediate frame. Render host-supplied text as literal content.
 - Scope a detail request to the active inspector. Switching host cancels the previous subscription and detail reads, drops old frames and invalidates unconfirmed action plans. After a write was dispatched, leaving the screen or losing the connection cannot prove it failed. Preserve the operation's last known status and reconcile before reporting success or retrying.
 
 ## Tests at each boundary
