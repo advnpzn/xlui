@@ -1,8 +1,10 @@
 # xlui
 
-xlui is a terminal management tool for Xen, inspired by k9s. The project scope includes inspecting, creating, editing, starting, stopping and deleting guests through the toolstack that manages them.
+xlui is a keyboard-driven **terminal user interface (TUI) for Xen**. Run it in Dom0 or connect over OpenSSH to browse a live domain list, filter guests and inspect their state and resource usage.
 
-The current implementation supports inventory and inspection. Use the interactive browser locally in Dom0 or from a Linux workstation over OpenSSH. The headless `list` command also supports XenAPI pools. Guest lifecycle and configuration changes are planned in the [management action design](docs/architecture.md#management-actions).
+Planned TUI actions include creating and editing guests, starting and stopping them, and deleting them through the toolstack that manages them. [Management action design](docs/architecture.md#management-actions)
+
+## Launch the TUI
 
 Build on Linux with Go 1.25.0 or newer. Use the latest patched stable Go release for production builds, as CI does.
 
@@ -11,8 +13,6 @@ go test ./...
 CGO_ENABLED=0 go build -o xlui ./cmd/xlui
 ./xlui
 ./xlui --host bench --interval 5s
-./xlui --host ssh://operator@bench list
-./xlui list
 ```
 
 The remote host needs a functioning xl installation and an account permitted to list domains. The workstation needs an OpenSSH client. SSH config aliases can carry port and jump host settings. The local command uses the current account and environment to run xl. No automatic privilege escalation is performed.
@@ -21,7 +21,7 @@ For the SSH browser, verify the host key and configure unattended authentication
 
 The browser samples `xl list -v` once per refresh. A failed refresh keeps the last successful sample visible with its timestamp and a **Stale** status. The default refresh delay is five seconds after each collection and can be changed with `--interval`. CPU time is cumulative seconds across vCPUs.
 
-| In the browser | Keys |
+| TUI action | Keys |
 | --- | --- |
 | Select a domain and open its inspector | Up/Down, then Enter |
 | Filter domains | `/` to edit, Enter to apply, Esc to cancel an edit |
@@ -29,9 +29,18 @@ The browser samples `xl list -v` once per refresh. A failed refresh keeps the la
 | Scroll the inspector or return to the list | Up/Down or Page Up/Page Down to scroll, Esc to return |
 | Quit | `q` outside the filter editor, or Ctrl+C anywhere |
 
+## Headless inventory
+
+Use `list` for scripts or a one-time inventory.
+
+```sh
+./xlui list
+./xlui --host ssh://operator@bench list
+```
+
 The plain-Xen `list` command preserves original bytes when redirected to a file or pipe. When stdout or stderr is a terminal, xlui replaces control characters except for the tabs and line feeds used for layout.
 
-## XAPI pool inventory
+### XAPI pool inventory
 
 Point `--xapi` at the HTTPS pool coordinator and use an account permitted to read VM records. In Bash, enter the password at the prompt and pass it only to xlui.
 
