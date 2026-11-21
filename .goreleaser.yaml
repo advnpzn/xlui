@@ -1,0 +1,43 @@
+version: 2
+project_name: xlui
+
+builds:
+  - id: xlui
+    main: ./cmd/xlui
+    binary: xlui
+    env: [CGO_ENABLED=0]
+    goos: [linux]
+    goarch: [amd64, arm64]
+    flags: [-trimpath, -buildvcs=false, -mod=readonly]
+    ldflags: [-s -w -buildid=]
+    mod_timestamp: '{{ .CommitTimestamp }}'
+
+archives:
+  - ids: [xlui]
+    formats: [binary]
+    name_template: 'xlui-linux-{{ .Arch }}'
+
+nfpms:
+  - ids: [xlui]
+    formats: [deb, rpm]
+    bindir: /usr/bin
+    file_name_template: '{{ .ConventionalFileName }}'
+    maintainer: 'advnpzn <63637385+advnpzn@users.noreply.github.com>'
+    homepage: https://github.com/advnpzn/xlui
+    description: Terminal client for Xen domain inventory and monitoring
+    license: NOASSERTION
+    mtime: '{{ .CommitDate }}'
+    rpm:
+      buildhost: xlui-build
+
+checksum:
+  name_template: SHA256SUMS
+  algorithm: sha256
+
+snapshot:
+  version_template: '{{ .Version }}-dev.{{ .ShortCommit }}'
+
+changelog:
+  disable: true
+release:
+  disable: true
