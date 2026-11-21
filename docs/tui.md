@@ -2,7 +2,7 @@
 
 The terminal client has three responsibilities. Widgets handle reusable terminal interactions. Screens give those interactions meaning for a Xen operator. A host session supplies observations and executes typed requests. These are internal packages in the xlui Go module. The headless interface and a future managed API can use the same session with no terminal dependencies.
 
-The current browser implements plain-Xen inventory, filtering, inspection of the selected observation, and configurable sampling. It uses tview widgets on a single tcell event loop. The remainder describes the target design, including on-demand device inspection, charts, settings and actions.
+The current browser implements plain-Xen inventory, filtering, configurable sampling, per-domain CPU utilization, and CPU and memory charts in the inspector. It uses tview widgets on a single tcell event loop. The remainder describes the target design, including on-demand device inspection, settings and actions.
 
 ## Where code belongs
 
