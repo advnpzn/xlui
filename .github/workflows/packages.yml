@@ -1,0 +1,58 @@
+name: Linux packages
+on:
+  workflow_dispatch:
+  push:
+    tags: ['v*']
+  pull_request:
+    paths:
+      - '.goreleaser.yaml'
+      - '.github/workflows/packages.yml'
+      - 'packaging/verify-linux.sh'
+
+permissions:
+  contents: read
+
+jobs:
+  packages:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      GOTOOLCHAIN: local
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version: '1.27.4'
+      - uses: goreleaser/goreleaser-action@a4f02ab5355a589de60d917a659ce617ed19b3de # v7
+        with:
+          version: v2.20.3
+          install-only: true
+      - name: Install package inspection tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends rpm rpm2cpio cpio
+      - name: Build and reproduce the six release artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          export SOURCE_DATE_EPOCH
+          SOURCE_DATE_EPOCH=$(git show -s --format=%ct HEAD)
+          goreleaser check
+          flags=(--clean --skip=publish)
+          if [[ "$GITHUB_REF_TYPE" != tag ]]; then flags+=(--snapshot); fi
+          GOCACHE="$RUNNER_TEMP/xlui-cache-1" goreleaser release "${flags[@]}"
+          cp dist/SHA256SUMS "$RUNNER_TEMP/xlui-first-build.sha256"
+          rm -r dist
+          GOCACHE="$RUNNER_TEMP/xlui-cache-2" goreleaser release "${flags[@]}"
+          cmp "$RUNNER_TEMP/xlui-first-build.sha256" dist/SHA256SUMS
+      - name: Verify binaries and package payloads
+        run: bash packaging/verify-linux.sh "$RUNNER_TEMP/xlui-packages"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: xlui-linux-${{ github.sha }}
+          path: ${{ runner.temp }}/xlui-packages/
+          if-no-files-found: error
+          compression-level: 0

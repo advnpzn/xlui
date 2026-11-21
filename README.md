@@ -4,7 +4,9 @@ xlui is a **terminal user interface (TUI) for Xen** with keyboard and mouse cont
 
 ## Installation
 
-On Linux, install from the repository with Git and Go 1.25.0 or newer. Use Git credentials with access to the repository.
+Open **Actions → Linux packages → Run workflow**, or select a build for a version tag. Download the `xlui-linux-<commit>` artifact and extract its ZIP. It contains static Linux binaries, DEB and RPM packages for amd64 and arm64, and `SHA256SUMS`. From the extracted directory, verify the files with `sha256sum -c SHA256SUMS`. Install the package for your machine with your distribution's package manager, or run `chmod +x xlui-linux-arm64` before using the standalone ARM binary. For x86-64 use `xlui-linux-amd64`.
+
+To install from source on Linux, use Git and Go 1.25.0 or newer. Use Git credentials with access to the repository.
 
 ```sh
 git clone https://github.com/advnpzn/xlui.git
