@@ -89,6 +89,7 @@ Mouse controls are enabled automatically in terminals that support mouse reporti
 | Switch open sessions | Tab | Click **Next** |
 | Shorten or lengthen the monitoring interval | `-` / `+` | Click **[-]** or **[+]** in the header |
 | Select a domain | ↑ / ↓ | Click its row |
+| Cycle domain order | `o` | Click **Sort** |
 | Open the inspector | Enter | Double-click a row or click **Inspect** |
 | Scroll the list or inspector | ↑ / ↓ or Page Up / Page Down | Scroll the wheel over the list or inspector |
 | Return to the list | Esc | Click **Back** |
@@ -96,6 +97,8 @@ Mouse controls are enabled automatically in terminals that support mouse reporti
 | Apply or cancel a filter edit | Enter / Esc | Click **Apply** or **Cancel** |
 | Clear the applied filter | Esc in the list | Click **Clear** |
 | Quit | `q` outside the filter editor, or Ctrl+C anywhere | Click **Quit** |
+
+Press `o` to cycle through provider order, name, CPU load, allocated memory and guest-used memory. Resource readings sort highest first, with unavailable readings last. Each connection remembers its order while open. Sorting and filtering use the latest cached observation.
 
 Each session starts at **2000 ms**. Press `-` to refresh faster or `+` to refresh slower in 100 ms steps, down to 100 ms. The header shows the active session’s interval. Changes take effect in the dashboard and inspector and preserve chart history. Use `xlui --host bench --interval 500ms` to start sessions at a different interval. If collection takes longer than the selected interval, xlui skips missed polls. Charts advance as samples arrive.
 

@@ -14,6 +14,7 @@ type domainRows struct {
 	session.Snapshot
 	visible []int
 	meters  bool
+	order   domainOrder
 }
 
 var columns = [...]string{"DOMAIN", "ID", "STATE", "VCPUS", "CPU LOAD", "ALLOCATED", "GUEST USED"}
@@ -27,7 +28,11 @@ func (r *domainRows) GetCell(row, col int) *tview.TableCell {
 		return nil
 	}
 	if row == 0 {
-		return tview.NewTableCell(columns[col]).SetSelectable(false).SetAttributes(tcell.AttrBold).SetTextColor(aqua)
+		title := columns[col]
+		if col == 0 && r.order != orderProvider {
+			title += " / " + orderNames[r.order]
+		}
+		return tview.NewTableCell(title).SetSelectable(false).SetAttributes(tcell.AttrBold).SetTextColor(aqua)
 	}
 	d := r.Domains[r.visible[row-1]]
 	color := ink

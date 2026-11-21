@@ -85,6 +85,7 @@ func (b *browser) update(s session.Snapshot) {
 	if s.Err != nil {
 		b.stats.skip(1)
 	}
+	lostCPU := b.rows.order == orderCPU && b.lastError == nil && s.Err != nil
 	b.lastError = s.Err
 	selected, _ := b.selected()
 	b.rows.Snapshot = s
@@ -92,6 +93,9 @@ func (b *browser) update(s session.Snapshot) {
 		b.inspect.observe(s)
 	}
 	if s.ObservedAt.Equal(b.latest) {
+		if lostCPU {
+			b.project(selected, false)
+		}
 		return
 	}
 	initial := b.latest.IsZero()
@@ -103,7 +107,6 @@ func (b *browser) update(s session.Snapshot) {
 func (b *browser) project(selected domainKey, initial bool) {
 	query := strings.ToLower(b.filter.GetText())
 	visible := b.rows.visible[:0]
-	row := 0
 	for i, d := range b.rows.Domains {
 		if query != "" && !strings.Contains(strings.ToLower(d.Name), query) &&
 			!strings.Contains(strings.ToLower(d.State), query) && !strings.Contains(strings.ToLower(stateLabel(d.State)), query) &&
@@ -111,13 +114,19 @@ func (b *browser) project(selected domainKey, initial bool) {
 			continue
 		}
 		visible = append(visible, i)
-		if keyOf(d) == selected {
-			row = len(visible)
-		}
 	}
 	b.rows.visible = visible
+	b.rows.sortVisible()
+	row := 0
 	if initial && len(visible) > 0 {
 		row = 1
+	} else {
+		for j, i := range visible {
+			if keyOf(b.rows.Domains[i]) == selected {
+				row = j + 1
+				break
+			}
+		}
 	}
 	b.table.SetSelectable(row > 0, false)
 	if current, _ := b.table.GetSelection(); current != row {
@@ -185,6 +194,12 @@ func (b *browser) key(ev *tcell.EventKey) bool {
 			b.inspect = newInspector(key, b.rows.Snapshot)
 		}
 	case tcell.KeyRune:
+		if ev.Rune() == 'o' {
+			selected, _ := b.selected()
+			b.rows.order = (b.rows.order + 1) % domainOrder(len(orderNames))
+			b.project(selected, false)
+			return false
+		}
 		if ev.Rune() == '/' {
 			selected, _ := b.selected()
 			b.edit = &filterEdit{query: b.filter.GetText(), selection: selected}
