@@ -12,3 +12,8 @@ CGO_ENABLED=0 go build -o xlui ./cmd/xlui
 ```
 
 The remote host needs a functioning xl installation and an account permitted to list domains. The workstation needs an OpenSSH client. SSH config aliases can carry port and jump host settings. The local command uses the current account and environment to run xl. No automatic privilege escalation is performed.
+
+## Working on xlui
+
+- [Architecture and source layout](docs/architecture.md) explains where domain data, terminal views, transports and host actions belong.
+- [Contributing](CONTRIBUTING.md) covers local checks, test fixtures and Conventional Commits.
