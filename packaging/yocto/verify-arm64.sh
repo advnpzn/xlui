@@ -55,3 +55,5 @@ SH
 chmod 0755 "$build/stubs/xl"
 PATH="$build/stubs:$PATH" qemu-aarch64 "$binary" list > "$build/list.txt"
 cmp "$XLUI_TEST_LISTING" "$build/list.txt"
+
+bash "$layer/../boot-arm64.sh" "$binary" "$XLUI_TEST_LISTING"

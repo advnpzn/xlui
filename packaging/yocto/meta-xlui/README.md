@@ -34,3 +34,13 @@ XLUI_SRC_URI:pn-xlui = "git:///srv/git/xlui.git;protocol=file;nobranch=1"
 For disconnected builds, populate `DL_DIR` with `bitbake xlui --runall=fetch` while the sources are reachable. Reuse that download directory and set `BB_NO_NETWORK = "1"` for the offline build. A full image also needs its other recipes' source downloads.
 
 When upgrading, update `SRCREV`, review the pinned revision's Go toolchain requirements and regenerate the dependency and license includes with `bitbake xlui -c update_modules`. Review the generated checksums and licenses before rebuilding.
+
+## Boot verification
+
+CI installs the staged recipe executable into a temporary copy of Yocto 6.0's
+published `core-image-minimal` root filesystem. It boots the pinned arm64
+kernel and image with QEMU system emulation, logs in through the serial console,
+and exercises inventory, the inspector and settings in read-only mode.
+A test-only `xl list -v` command supplies the inventory. The guest runs without
+network access. Building your own distribution with `IMAGE_INSTALL` also tests
+its package dependencies, image customization and target toolstack.

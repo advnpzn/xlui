@@ -10,7 +10,7 @@ permissions:
   contents: read
 jobs:
   arm64:
-    name: Compile and stage the qemuarm64 recipe
+    name: Build and boot the qemuarm64 client
     runs-on: ubuntu-22.04
     timeout-minutes: 25
     steps:
@@ -37,6 +37,6 @@ jobs:
       - name: Install OpenEmbedded host tools and QEMU
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends chrpath cpio diffstat gawk lz4 qemu-user rpcsvc-proto socat zstd
+          sudo apt-get install -y --no-install-recommends chrpath cpio diffstat e2fsprogs gawk lz4 python3-pexpect qemu-system-arm qemu-user rpcsvc-proto socat zstd
       - name: Build and exercise the staged client
         run: bash packaging/yocto/verify-arm64.sh "$PWD/oe-core" "$PWD" "$RUNNER_TEMP/xlui-oe"
