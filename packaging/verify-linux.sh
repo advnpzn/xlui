@@ -7,6 +7,15 @@ mkdir "$output"
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 
+export XLUI_TEST_LISTING="$PWD/internal/xen/xl/testdata/list-v-xen-4.19.txt"
+mkdir "$work/bin"
+cat > "$work/bin/xl" <<'EOF'
+#!/bin/sh
+[ "$#" -eq 2 ] && [ "$1" = list ] && [ "$2" = -v ] || exit 1
+cat "$XLUI_TEST_LISTING"
+EOF
+chmod 0755 "$work/bin/xl"
+
 artifact_path() {
   jq -er --arg arch "$1" --arg format "$2" '
     [.[] | select(.goarch == $arch and .extra.Format == $format) | .path]
@@ -38,9 +47,14 @@ for arch in amd64 arm64; do
 
   install -m 0755 "$binary" "$output/xlui-linux-$arch"
   cp "$deb" "$rpm_file" "$output/"
+
+  client=("$output/xlui-linux-$arch")
+  if [[ "$arch" == arm64 ]]; then client=(qemu-aarch64 "${client[@]}"); fi
+  "${client[@]}" --help
+  PATH="$work/bin:$PATH" "${client[@]}" list > "$work/list-$arch"
+  cmp "$XLUI_TEST_LISTING" "$work/list-$arch"
 done
 cp dist/SHA256SUMS "$output/"
 cd "$output"
 [[ "$(wc -l < SHA256SUMS)" -eq 6 ]]
 sha256sum --strict --check SHA256SUMS
-./xlui-linux-amd64 --help
