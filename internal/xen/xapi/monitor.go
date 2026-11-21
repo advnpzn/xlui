@@ -51,6 +51,7 @@ func (m *Monitor) Read(ctx context.Context) ([]xen.Domain, error) {
 	out := make([]xen.Domain, 0, len(records))
 	for ref, r := range records {
 		d := xen.Domain{ControlDomain: *r.ControlDomain, Name: *r.Name, UUID: r.UUID, State: r.PowerState, ID: -1, VCPUs: -1, MemoryMiB: -1, CPUSeconds: -1}
+		d.StartTarget = m.startTarget(ref, r)
 		if r.PowerState == "Running" || r.PowerState == "Paused" {
 			if id, err := strconv.Atoi(r.DomainID.String()); err == nil && id >= 0 {
 				d.ID = id

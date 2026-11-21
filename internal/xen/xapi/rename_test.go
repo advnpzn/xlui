@@ -23,9 +23,9 @@ func TestPoolRename(t *testing.T) {
 	list := func(key string, vm map[string]any) rpcStep {
 		return rpcStep{method: "VM.get_all_records", result: map[string]any{key: vm}}
 	}
-	set := rpcStep{method: "VM.set_name_label", params: []string{testSession, ref, change.NewName}}
+	set := rpcStep{method: "VM.set_name_label", params: []any{testSession, ref, change.NewName}}
 	read := func(vm map[string]any) rpcStep {
-		return rpcStep{method: "VM.get_record", params: []string{testSession, ref}, result: vm}
+		return rpcStep{method: "VM.get_record", params: []any{testSession, ref}, result: vm}
 	}
 	// An invalid reply ID makes dispatch ambiguous. The fixture permits
 	// logout only, so a repeated mutation would fail the test.

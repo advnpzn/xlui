@@ -23,7 +23,7 @@ const (
 
 type rpcStep struct {
 	method     string
-	params     []string
+	params     []any
 	result     any
 	fault      any
 	responseID any
@@ -52,7 +52,7 @@ func xenServer(t *testing.T, steps ...rpcStep) *httptest.Server {
 			Version string          `json:"jsonrpc"`
 			ID      json.RawMessage `json:"id"`
 			Method  string          `json:"method"`
-			Params  []string        `json:"params"`
+			Params  []any           `json:"params"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			t.Error(err)
@@ -73,7 +73,7 @@ func xenServer(t *testing.T, steps ...rpcStep) *httptest.Server {
 			if !reflect.DeepEqual(req.Params, step.params) {
 				t.Errorf("%s did not receive the expected parameters", req.Method)
 			}
-		} else if !reflect.DeepEqual(req.Params, []string{testSession}) {
+		} else if !reflect.DeepEqual(req.Params, []any{testSession}) {
 			t.Errorf("%s did not receive the session reference as its sole argument", req.Method)
 		}
 		if step.onCall != nil {

@@ -91,6 +91,8 @@ Press **g** or click **Guests**. Select an action, fill in the form, and choose 
 
 On a XenAPI connection, select a guest and choose **Guests → Rename guest** to change its pool display name. The preview shows the current name, proposed name and VM UUID. The change takes effect immediately and leaves the guest OS hostname and power state alone.
 
+To boot a halted pool VM, select **Guests → Start guest**. Review the connection, name and UUID, then apply. The pool selects the host and runs its pre-boot checks. xlui verifies that the VM reaches Running. Guest OS and application readiness are separate checks.
+
 To stop a running pool VM, select **Guests → Shut down gracefully**. The action appears when the pool advertises guest shutdown and supplies the host and boot information needed to identify the running instance. Review the connection, guest name and UUID before applying. xlui reports success after it observes the VM halted. If the reply is lost, inspect the VM in the pool before retrying.
 
 On Dom0, the account needs permission to run `xl` and work in `/etc/xen`. The write path uses `sh`, `flock` and GNU coreutils. Existing files must have a matching guest name and an explicit guest UUID. Edits support single-line assignments and an explicit decimal `memory` or `vcpus` field. Other fields and comments are preserved. Starting a saved definition uses the host's JSON `xl create -n` output and its configured disks and devices. Use a XenAPI session for a pool-managed host.

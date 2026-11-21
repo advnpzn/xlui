@@ -20,6 +20,8 @@ type Domain struct {
 
 	// ShutdownInstance binds a supported graceful shutdown to this observation.
 	ShutdownInstance string
+	// StartTarget binds a supported start to the observed halted VM.
+	StartTarget string
 }
 
 // Identity binds a numeric ID to this guest inside a single session.

@@ -31,7 +31,7 @@ func poolVMs(ref string, vm map[string]any) rpcStep {
 }
 
 func startMetric(start string) rpcStep {
-	return rpcStep{method: "VM_metrics.get_record", params: []string{testSession, shutdownMetrics}, result: map[string]any{"start_time": start}}
+	return rpcStep{method: "VM_metrics.get_record", params: []any{testSession, shutdownMetrics}, result: map[string]any{"start_time": start}}
 }
 
 // The operator selects the guest from a real inventory sample. The fixture checks
@@ -80,11 +80,11 @@ func TestGracefulShutdownFromInventory(t *testing.T) {
 	migrated := maps.Clone(before)
 	migrated["resident_on"] = "OpaqueRef:other-host"
 	normal := []rpcStep{poolVMs(shutdownVM, before), startMetric(shutdownStart)}
-	dispatch := rpcStep{method: "VM.clean_shutdown", params: []string{testSession, shutdownVM}}
+	dispatch := rpcStep{method: "VM.clean_shutdown", params: []any{testSession, shutdownVM}}
 	lostReply := dispatch
 	lostReply.responseID = "unrelated"
 	read := func(vm map[string]any) rpcStep {
-		return rpcStep{method: "VM.get_record", params: []string{testSession, shutdownVM}, result: vm}
+		return rpcStep{method: "VM.get_record", params: []any{testSession, shutdownVM}, result: vm}
 	}
 	for _, tc := range []struct {
 		name     string
@@ -152,7 +152,7 @@ func TestGracefulShutdownAllowsInventoryWhileWaiting(t *testing.T) {
 	steps = append(steps, fresh...) // confirm
 	started := make(chan struct{})
 	release := make(chan struct{})
-	steps = append(steps, rpcStep{method: "VM.clean_shutdown", params: []string{testSession, shutdownVM}, onCall: func(ctx context.Context) {
+	steps = append(steps, rpcStep{method: "VM.clean_shutdown", params: []any{testSession, shutdownVM}, onCall: func(ctx context.Context) {
 		close(started)
 		select {
 		case <-release:
@@ -163,7 +163,7 @@ func TestGracefulShutdownAllowsInventoryWhileWaiting(t *testing.T) {
 	halted := maps.Clone(vm)
 	halted["power_state"] = "Halted"
 	halted["domid"] = "-1"
-	steps = append(steps, rpcStep{method: "VM.get_record", params: []string{testSession, shutdownVM}, result: halted})
+	steps = append(steps, rpcStep{method: "VM.get_record", params: []any{testSession, shutdownVM}, result: halted})
 	m, plan := prepareObservedShutdown(t, steps)
 
 	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)

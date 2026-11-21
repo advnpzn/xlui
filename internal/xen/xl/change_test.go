@@ -146,7 +146,7 @@ func TestBootEditPreservesUserFile(t *testing.T) {
 // A nil runner ensures that an unsupported action cannot contact Dom0.
 func TestUnsupportedActionsRejectBeforeHostAccess(t *testing.T) {
 	prepare := GuestChanges(nil)
-	for _, action := range []xen.Action{xen.RenameGuest, xen.GracefulShutdown, 0} {
+	for _, action := range []xen.Action{xen.RenameGuest, xen.GracefulShutdown, xen.StartGuest, 0} {
 		if _, err := prepare(t.Context(), xen.Change{Action: action, Name: "worker"}); err == nil {
 			t.Fatalf("accepted unsupported action %v", action)
 		}

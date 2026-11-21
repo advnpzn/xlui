@@ -52,6 +52,11 @@ func (w *workspace) guestMenu(h *liveSession) {
 		if pool {
 			if editable {
 				list.AddItem("Rename guest", tview.Escape(terminal.SingleLine(target.Name)), 'r', func() { w.guestForm(h, xen.RenameGuest, target) })
+				if target.State == "Halted" && target.ID == -1 && target.StartTarget != "" {
+					list.AddItem("Start guest", tview.Escape(terminal.SingleLine(target.Name)), 's', func() {
+						w.previewGuest(h, xen.Change{Action: xen.StartGuest, Target: target.Identity(), Name: target.Name, Instance: target.StartTarget})
+					})
+				}
 				if target.State == "Running" && target.ID > 0 && target.ShutdownInstance != "" {
 					list.AddItem("Shut down gracefully", tview.Escape(terminal.SingleLine(target.Name)), 's', func() {
 						w.previewGuest(h, xen.Change{Action: xen.GracefulShutdown, Target: target.Identity(), Name: target.Name, Instance: target.ShutdownInstance})

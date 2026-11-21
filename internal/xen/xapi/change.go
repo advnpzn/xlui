@@ -129,8 +129,8 @@ func validLabel(name string) bool {
 func (m *Monitor) Prepare(ctx context.Context, c xen.Change) (xen.Plan, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	if c.Action == xen.GracefulShutdown {
-		return m.prepareShutdown(ctx, c)
+	if c.Action == xen.GracefulShutdown || c.Action == xen.StartGuest {
+		return m.preparePower(ctx, c)
 	}
 	edit, err := m.inspectChange(ctx, c)
 	if err != nil {
