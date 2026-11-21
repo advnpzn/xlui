@@ -159,5 +159,11 @@ func openMonitor(p config.Profile, password string) (session.Source, error) {
 		return session.Source{}, err
 	}
 	runner.BatchMode = true
-	return session.Source{Prepare: xl.GuestChanges(runner), Read: func(ctx context.Context) ([]xen.Domain, error) { return xl.ReadMonitor(ctx, runner) }}, nil
+	return session.Source{
+		Prepare: xl.GuestChanges(runner),
+		Read:    func(ctx context.Context) ([]xen.Domain, error) { return xl.ReadMonitor(ctx, runner) },
+		ReadVCPUs: func(ctx context.Context, target xen.Identity) ([]xen.VCPU, error) {
+			return xl.ReadVCPUs(ctx, runner, target)
+		},
+	}, nil
 }

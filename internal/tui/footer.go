@@ -60,6 +60,9 @@ func (b *browser) drawFooter(screen tcell.Screen, width, top, height int) {
 
 	if b.inspect != nil {
 		add("[Esc Back]", tcell.KeyEsc, 0)
+		if b.canReadVCPUs() {
+			add("[v vCPUs]", tcell.KeyRune, 'v')
+		}
 	} else {
 		if _, ok := b.selected(); ok {
 			inspect := "[Enter Inspect]"

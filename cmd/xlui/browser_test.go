@@ -99,6 +99,9 @@ func TestReadOnlyDropsManagementForEveryOpenedProfile(t *testing.T) {
 			if s.Prepare != nil || s.Read == nil {
 				t.Fatal("read-only session exposed incorrect capabilities")
 			}
+			if (s.ReadVCPUs != nil) != (p.Type != config.XAPI) {
+				t.Fatalf("read-only %s session exposed incorrect vCPU placement capability", p.Type)
+			}
 			if s.Close != nil {
 				s.Close()
 			}

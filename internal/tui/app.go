@@ -52,14 +52,10 @@ func runScreen(ctx context.Context, screen tcell.Screen, initial config.Profile,
 			return nil
 		case show := <-w.settingsDone:
 			show()
-		case result := <-w.guestResults:
-			if w.active == result.host && w.dialog == result.dialog {
-				result.show()
-			}
+		case result := <-w.dialogResults:
+			w.applyDialogResult(result)
 		case update := <-w.updates:
-			if w.live[update.host.profile] == update.host {
-				update.host.view.update(update.snapshot)
-			}
+			w.applyUpdate(update)
 		case ev, ok := <-events:
 			if !ok {
 				return nil

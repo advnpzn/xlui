@@ -29,6 +29,7 @@ type browser struct {
 	openCount             int
 	sessions, nextSession func()
 	guests, settings      func()
+	vcpus                 func()
 	onLayout              func(Layout)
 	layout                Layout
 	host                  string
@@ -217,7 +218,9 @@ func (b *browser) key(ev *tcell.EventKey) bool {
 		return true
 	}
 	if b.inspect != nil {
-		if ev.Key() == tcell.KeyEsc {
+		if ev.Key() == tcell.KeyRune && ev.Rune() == 'v' && b.canReadVCPUs() {
+			b.vcpus()
+		} else if ev.Key() == tcell.KeyEsc {
 			b.inspect = nil
 		} else {
 			b.inspect.view.InputHandler()(ev, nil)

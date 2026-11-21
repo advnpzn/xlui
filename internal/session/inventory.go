@@ -129,8 +129,12 @@ func (i *Inventory) poll(ctx context.Context, read Reader) {
 	}
 }
 
+// VCPUReader returns one placement sample for an identity on this host.
+type VCPUReader func(context.Context, xen.Identity) ([]xen.VCPU, error)
+
 type Source struct {
-	Prepare xen.Prepare
-	Read    Reader
-	Close   func()
+	Prepare   xen.Prepare
+	ReadVCPUs VCPUReader // optional on-demand placement reader
+	Read      Reader
+	Close     func()
 }

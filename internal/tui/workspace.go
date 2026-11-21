@@ -22,46 +22,52 @@ type liveSession struct {
 	cancel  context.CancelFunc
 }
 
+type dialogResult struct {
+	host   *liveSession
+	dialog *connectionDialog
+	show   func()
+}
+
 type hostUpdate struct {
 	host     *liveSession
 	snapshot session.Snapshot
 }
 
 type workspace struct {
-	ctx          context.Context
-	cancel       context.CancelFunc
-	workers      sync.WaitGroup
-	initial      config.Profile
-	store        config.Store
-	interval     time.Duration // explicit CLI override, zero uses the saved default
-	layout       Layout
-	preferences  intervalSettings
-	settingsDone chan func()
-	open         OpenSource
-	live         map[config.Profile]*liveSession
-	order        []config.Profile
-	active       *liveSession
-	updates      chan hostUpdate
-	guestResults chan guestResult
-	dialog       *connectionDialog
-	quit         bool
+	ctx           context.Context
+	cancel        context.CancelFunc
+	workers       sync.WaitGroup
+	initial       config.Profile
+	store         config.Store
+	interval      time.Duration // explicit CLI override, zero uses the saved default
+	layout        Layout
+	preferences   intervalSettings
+	settingsDone  chan func()
+	open          OpenSource
+	live          map[config.Profile]*liveSession
+	order         []config.Profile
+	active        *liveSession
+	updates       chan hostUpdate
+	dialogResults chan dialogResult
+	dialog        *connectionDialog
+	quit          bool
 }
 
 func newWorkspace(parent context.Context, initial config.Profile, interval time.Duration, open OpenSource, store config.Store) *workspace {
 	ctx, cancel := context.WithCancel(parent)
 	saved, err := store.LoadInterval()
 	return &workspace{
-		ctx:          ctx,
-		cancel:       cancel,
-		initial:      initial,
-		interval:     interval,
-		open:         open,
-		store:        store,
-		live:         make(map[config.Profile]*liveSession),
-		preferences:  intervalSettings{saved: saved, err: err},
-		settingsDone: make(chan func()),
-		updates:      make(chan hostUpdate),
-		guestResults: make(chan guestResult),
+		ctx:           ctx,
+		cancel:        cancel,
+		initial:       initial,
+		interval:      interval,
+		open:          open,
+		store:         store,
+		live:          make(map[config.Profile]*liveSession),
+		preferences:   intervalSettings{saved: saved, err: err},
+		settingsDone:  make(chan func()),
+		updates:       make(chan hostUpdate),
+		dialogResults: make(chan dialogResult),
 	}
 }
 
@@ -99,6 +105,9 @@ func (w *workspace) connect(p config.Profile, password string) {
 	h.view.nextSession = w.next
 	h.view.onLayout = func(layout Layout) { w.layout = layout }
 	h.view.settings = func() { w.settings(h) }
+	if source.ReadVCPUs != nil {
+		h.view.vcpus = func() { w.vcpuPlacement(h, source.ReadVCPUs) }
+	}
 	if h.prepare != nil {
 		h.view.guests = func() { w.guestMenu(h) }
 	}
@@ -123,10 +132,10 @@ func (w *workspace) connect(p config.Profile, password string) {
 }
 
 func (w *workspace) activate(h *liveSession) {
+	w.dismissDialog()
 	w.active = h
 	h.view.setLayout(w.layout)
 	h.view.pointer = pointerState{}
-	w.dialog = nil
 }
 
 func (w *workspace) next() {
@@ -142,6 +151,7 @@ func (w *workspace) disconnect(p config.Profile) {
 		delete(w.live, p)
 		h.cancel()
 		if w.active == h {
+			w.dismissDialog()
 			w.active = nil
 			if len(w.order) > 0 {
 				w.active = w.live[w.order[0]]
@@ -151,3 +161,23 @@ func (w *workspace) disconnect(p config.Profile) {
 }
 
 func (w *workspace) close() { w.cancel(); w.workers.Wait() }
+
+func (w *workspace) applyUpdate(update hostUpdate) {
+	h := update.host
+	if w.live[h.profile] != h {
+		return
+	}
+	h.view.update(update.snapshot)
+	if d := w.dialog; w.active == h && d != nil && d.inspector != nil {
+		if d.inspector != h.view.inspect || !h.view.canReadVCPUs() {
+			d.back()
+		}
+	}
+}
+
+// Only the originating host and dialog may present an asynchronous result.
+func (w *workspace) applyDialogResult(result dialogResult) {
+	if w.active == result.host && w.dialog == result.dialog {
+		result.show()
+	}
+}
