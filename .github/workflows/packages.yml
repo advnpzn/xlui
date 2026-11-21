@@ -3,11 +3,6 @@ on:
   workflow_dispatch:
   push:
     tags: ['v*']
-  pull_request:
-    paths:
-      - '.goreleaser.yaml'
-      - '.github/workflows/packages.yml'
-      - 'packaging/verify-linux.sh'
 
 permissions:
   contents: read
