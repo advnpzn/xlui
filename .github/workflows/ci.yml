@@ -11,6 +11,11 @@ jobs:
         with:
           go-version-file: go.mod
           cache: false
+      - name: Check formatting and module metadata
+        run: |
+          go fmt ./...
+          go mod tidy
+          git diff --exit-code
       - run: go test -race ./...
       - run: go vet ./...
       - name: Measure bulk inventory parsing
