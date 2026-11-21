@@ -17,7 +17,17 @@ The remote host needs a functioning xl installation and an account permitted to 
 
 For the SSH browser, verify the host key and configure unattended authentication for the destination first. Background reads use OpenSSH batch mode with strict host-key checking. Inventory commands disable agent, X11 and port forwarding.
 
-The browser samples `xl list -v` once per refresh and labels the last good sample stale after a failed read. Use the arrow keys to select a domain, `/` to filter, Enter to inspect the current sample, Esc to go back and `q` to quit. CPU time is cumulative seconds across vCPUs. The default refresh delay is five seconds after each collection and can be changed with `--interval`. The plain-Xen `list` command preserves original bytes when redirected to a file or pipe. When stdout or stderr is a terminal, xlui replaces control characters except for the tabs and line feeds used for layout.
+The browser samples `xl list -v` once per refresh. A failed refresh keeps the last successful sample visible with its timestamp and a **Stale** status. The default refresh delay is five seconds after each collection and can be changed with `--interval`. CPU time is cumulative seconds across vCPUs.
+
+| In the browser | Keys |
+| --- | --- |
+| Select a domain and open its inspector | Up/Down, then Enter |
+| Filter domains | `/` to edit, Enter to apply, Esc to cancel an edit |
+| Clear the applied filter from the list | Esc |
+| Scroll the inspector or return to the list | Up/Down or Page Up/Page Down to scroll, Esc to return |
+| Quit | `q` outside the filter editor, or Ctrl+C anywhere |
+
+The plain-Xen `list` command preserves original bytes when redirected to a file or pipe. When stdout or stderr is a terminal, xlui replaces control characters except for the tabs and line feeds used for layout.
 
 ## XAPI pool inventory
 

@@ -5,9 +5,9 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	"unicode"
 
 	"github.com/advnpzn/xlui/internal/session"
+	"github.com/advnpzn/xlui/internal/terminal"
 	"github.com/advnpzn/xlui/internal/xen"
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
@@ -20,54 +20,6 @@ type domainKey struct {
 
 func keyOf(d xen.Domain) domainKey { return domainKey{d.UUID, d.ID} }
 
-// literal removes control characters from host data before putting it on a single line.
-func literal(text string) string {
-	return strings.Map(func(r rune) rune {
-		if unicode.IsControl(r) || unicode.Is(unicode.Cf, r) {
-			return '�'
-		}
-		return r
-	}, text)
-}
-
-type domainRows struct {
-	tview.TableContentReadOnly
-	all     []xen.Domain
-	visible []int
-}
-
-var columns = [...]string{"NAME", "ID", "STATE", "MiB", "vCPUs", "CPU sec"}
-
-func (r *domainRows) GetColumnCount() int { return len(columns) }
-func (r *domainRows) GetRowCount() int    { return len(r.visible) + 1 }
-
-// tview requests visible cells, so a repaint formats only rows that fit on screen.
-func (r *domainRows) GetCell(row, col int) *tview.TableCell {
-	if col < 0 || col >= len(columns) || row < 0 || row > len(r.visible) {
-		return nil
-	}
-	if row == 0 {
-		return tview.NewTableCell(columns[col]).SetSelectable(false).SetAttributes(tcell.AttrBold)
-	}
-	d := r.all[r.visible[row-1]]
-	var text string
-	switch col {
-	case 0:
-		return tview.NewTableCell(tview.Escape(literal(d.Name))).SetMaxWidth(28).SetExpansion(1)
-	case 1:
-		text = strconv.Itoa(d.ID)
-	case 2:
-		text = tview.Escape(literal(d.State))
-	case 3:
-		text = strconv.FormatInt(d.MemoryMiB, 10)
-	case 4:
-		text = strconv.Itoa(d.VCPUs)
-	case 5:
-		text = strconv.FormatFloat(d.CPUSeconds, 'f', 1, 64)
-	}
-	return tview.NewTableCell(text)
-}
-
 type browser struct {
 	host      string
 	rows      domainRows
@@ -76,20 +28,28 @@ type browser struct {
 	header    *tview.TextView
 	footer    *tview.TextView
 	detail    *tview.TextView
+	message   *tview.TextView
 	inspect   *domainKey
-	editing   bool
+	edit      *filterEdit
 	latest    time.Time
 	lastError error
 }
 
+// Escape restores the filter and selection from the start of this edit.
+type filterEdit struct {
+	query     string
+	selection domainKey
+}
+
 func newBrowser(host string) *browser {
 	b := &browser{
-		host:   literal(host),
-		table:  tview.NewTable().SetFixed(1, 0),
-		filter: tview.NewInputField().SetLabel("Filter  "),
-		header: tview.NewTextView().SetWrap(false),
-		footer: tview.NewTextView().SetWrap(false),
-		detail: tview.NewTextView(),
+		host:    terminal.SingleLine(host),
+		table:   tview.NewTable().SetFixed(1, 0),
+		filter:  tview.NewInputField().SetLabel("Filter  "),
+		header:  tview.NewTextView().SetWrap(false),
+		footer:  tview.NewTextView().SetWrap(false),
+		detail:  tview.NewTextView().ScrollToBeginning(),
+		message: tview.NewTextView().SetWordWrap(true).ScrollToBeginning(),
 	}
 	b.table.SetContent(&b.rows)
 	b.filter.SetChangedFunc(func(string) {
@@ -149,7 +109,7 @@ func (b *browser) updateDetail() {
 	for _, d := range b.rows.all {
 		if keyOf(d) == *b.inspect {
 			b.detail.SetText(fmt.Sprintf("%s\n\nUUID     %s\nID       %d\nState    %s\nMemory   %d MiB\nvCPUs    %d\nCPU time %.1f s",
-				literal(d.Name), literal(d.UUID), d.ID, literal(d.State), d.MemoryMiB, d.VCPUs, d.CPUSeconds))
+				terminal.SingleLine(d.Name), terminal.SingleLine(d.UUID), d.ID, terminal.SingleLine(d.State), d.MemoryMiB, d.VCPUs, d.CPUSeconds))
 			return
 		}
 	}
@@ -159,10 +119,15 @@ func (b *browser) key(ev *tcell.EventKey) bool {
 	if ev.Key() == tcell.KeyCtrlC {
 		return true
 	}
-	if b.editing {
+	if b.edit != nil {
 		switch ev.Key() {
-		case tcell.KeyEsc, tcell.KeyEnter:
-			b.editing = false
+		case tcell.KeyEsc:
+			b.filter.SetText(b.edit.query)
+			b.project(b.edit.selection, false)
+			b.edit = nil
+			b.filter.Blur()
+		case tcell.KeyEnter:
+			b.edit = nil
 			b.filter.Blur()
 		default:
 			b.filter.InputHandler()(ev, nil)
@@ -175,6 +140,8 @@ func (b *browser) key(ev *tcell.EventKey) bool {
 	if b.inspect != nil {
 		if ev.Key() == tcell.KeyEsc {
 			b.inspect = nil
+		} else {
+			b.detail.InputHandler()(ev, nil)
 		}
 		return false
 	}
@@ -185,10 +152,12 @@ func (b *browser) key(ev *tcell.EventKey) bool {
 		if key, ok := b.selected(); ok {
 			b.inspect = &key
 			b.updateDetail()
+			b.detail.ScrollToBeginning()
 		}
 	case tcell.KeyRune:
 		if ev.Rune() == '/' {
-			b.editing = true
+			selected, _ := b.selected()
+			b.edit = &filterEdit{query: b.filter.GetText(), selection: selected}
 			b.filter.Focus(nil)
 			return false
 		}
@@ -205,52 +174,4 @@ func (b *browser) key(ev *tcell.EventKey) bool {
 		}
 	}
 	return false
-}
-
-func (b *browser) draw(screen tcell.Screen) {
-	w, h := screen.Size()
-	if w < 1 || h < 1 {
-		return
-	}
-	screen.HideCursor()
-	status := "loading"
-	if !b.latest.IsZero() {
-		status = b.latest.Format("15:04:05")
-	}
-	if b.lastError != nil {
-		if b.latest.IsZero() {
-			status = "unavailable"
-		} else {
-			status = "stale " + status
-		}
-		status += " | " + literal(b.lastError.Error())
-	}
-	b.header.SetText(fmt.Sprintf("xlui | %s | %s", b.host, status))
-	b.header.SetRect(0, 0, w, 1)
-	b.header.Draw(screen)
-
-	content := tview.Primitive(b.table)
-	help := fmt.Sprintf("%d/%d domains   / filter   Enter inspect   q quit", len(b.rows.visible), len(b.rows.all))
-	if b.inspect != nil {
-		content = b.detail
-		help = "Domain details   Esc back   q quit"
-	}
-	if h > 2 {
-		content.SetRect(0, 1, w, h-2)
-		content.Draw(screen)
-	}
-	if h > 1 {
-		if b.editing {
-			b.filter.SetRect(0, h-1, w, 1)
-			b.filter.Draw(screen)
-		} else {
-			if text := b.filter.GetText(); text != "" && b.inspect == nil {
-				help = "Filter " + literal(text) + " | " + help
-			}
-			b.footer.SetText(help)
-			b.footer.SetRect(0, h-1, w, 1)
-			b.footer.Draw(screen)
-		}
-	}
-	screen.Show()
 }
