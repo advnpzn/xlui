@@ -2,7 +2,9 @@ package tui
 
 import (
 	"context"
+	"errors"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -67,6 +69,33 @@ func TestOrderCyclesOverCachedSnapshot(t *testing.T) {
 		if !slices.Equal(domains, original) {
 			t.Fatal("ordering mutated the provider's snapshot")
 		}
+	}
+
+	b.key(tcell.NewEventKey(tcell.KeyRune, 'o', 0))
+	b.key(tcell.NewEventKey(tcell.KeyRune, 'o', 0))
+	assertVisibleIDs(t, b, 4, 2, 3, 8)
+	// A failed refresh keeps the domains and timestamp but clears the rates.
+	b.update(session.Snapshot{Domains: domains, ObservedAt: snap.ObservedAt, Sequence: snap.Sequence + 1, Err: errors.New("offline")})
+	assertVisibleIDs(t, b, 2, 3, 8, 4)
+	if selected, ok := b.selected(); !ok || selected != keyOf(original[2]) {
+		t.Fatalf("first failed refresh changed selection to %v", selected)
+	}
+}
+
+func TestCompactTableShowsActiveOrder(t *testing.T) {
+	v := newMouseView(t)
+	v.screen.SetSize(80, 16)
+	v.key(tcell.NewEventKey(tcell.KeyRune, 'o', 0))
+	v.key(tcell.NewEventKey(tcell.KeyRune, 'o', 0))
+	v.draw(v.screen)
+	_, y, width, _ := v.table.GetRect()
+	var header strings.Builder
+	for x := range width {
+		ch, _, _, _ := v.screen.GetContent(x, y)
+		header.WriteRune(ch)
+	}
+	if !strings.Contains(header.String(), "CPU desc") {
+		t.Fatalf("active order missing from compact table header: %q", header.String())
 	}
 }
 
