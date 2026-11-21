@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/advnpzn/xlui/internal/session"
@@ -23,7 +24,7 @@ const usage = "Usage: xlui [--host SSH_DESTINATION] [--interval DURATION]\n" +
 type browserFunc func(context.Context, string, time.Duration, session.Reader) error
 
 func main() {
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	if err := run(ctx, os.Args[1:], os.Stdout, os.Stderr); err != nil {
 		fmt.Fprintln(os.Stderr, err)
