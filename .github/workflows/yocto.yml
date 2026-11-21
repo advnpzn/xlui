@@ -10,7 +10,7 @@ permissions:
   contents: read
 jobs:
   arm64:
-    name: Build and boot the qemuarm64 client
+    name: Compile and stage the qemuarm64 recipe
     runs-on: ubuntu-22.04
     timeout-minutes: 25
     steps:
@@ -37,6 +37,33 @@ jobs:
       - name: Install OpenEmbedded host tools and QEMU
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends chrpath cpio diffstat e2fsprogs gawk lz4 python3-pexpect qemu-system-arm qemu-user rpcsvc-proto socat zstd
+          sudo apt-get install -y --no-install-recommends chrpath cpio diffstat gawk lz4 qemu-user rpcsvc-proto socat zstd
       - name: Build and exercise the staged client
         run: bash packaging/yocto/verify-arm64.sh "$PWD/oe-core" "$PWD" "$RUNNER_TEMP/xlui-oe"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: serial-boot-inputs
+          path: ${{ runner.temp }}/xlui-oe/serial/
+          retention-days: 1
+          if-no-files-found: error
+
+  serial:
+    name: Boot the staged client in a Yocto guest
+    needs: arm64
+    # The wrynose release filesystem uses features supported by e2fsprogs 1.47+.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: serial-boot-inputs
+          path: ${{ runner.temp }}/serial/
+      - name: Install boot test tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends e2fsprogs python3-pexpect qemu-system-arm zstd
+      - name: Boot the reference image and use the serial console
+        run: bash packaging/yocto/boot-arm64.sh "$RUNNER_TEMP/serial/xlui" "$RUNNER_TEMP/serial/inventory.txt"

@@ -56,4 +56,7 @@ chmod 0755 "$build/stubs/xl"
 PATH="$build/stubs:$PATH" qemu-aarch64 "$binary" list > "$build/list.txt"
 cmp "$XLUI_TEST_LISTING" "$build/list.txt"
 
-bash "$layer/../boot-arm64.sh" "$binary" "$XLUI_TEST_LISTING"
+# Pass only the staged executable and its matching fixture to the boot runner.
+mkdir -p "$build/serial"
+install -m 0755 "$binary" "$build/serial/xlui"
+cp "$XLUI_TEST_LISTING" "$build/serial/inventory.txt"
