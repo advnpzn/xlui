@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/advnpzn/xlui/internal/session"
+	"github.com/advnpzn/xlui/internal/terminal"
 	"github.com/advnpzn/xlui/internal/transport"
 	"github.com/advnpzn/xlui/internal/tui"
 	"github.com/advnpzn/xlui/internal/xen"
@@ -24,12 +25,23 @@ const usage = "Usage: xlui [--host SSH_DESTINATION] [--interval DURATION]\n" +
 type browserFunc func(context.Context, string, time.Duration, session.Reader) error
 
 func main() {
+	os.Exit(command())
+}
+
+func command() int {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	if err := run(ctx, os.Args[1:], os.Stdout, os.Stderr); err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
+	out, finishOut := terminal.Output(os.Stdout)
+	diagnostics, finishDiagnostics := terminal.Output(os.Stderr)
+	err := run(ctx, os.Args[1:], out, diagnostics)
+	err = errors.Join(err, finishOut())
+	if err != nil {
+		fmt.Fprintln(diagnostics, err)
 	}
+	if flushErr := finishDiagnostics(); err != nil || flushErr != nil {
+		return 1
+	}
+	return 0
 }
 
 func run(ctx context.Context, args []string, stdout, stderr io.Writer) error {
@@ -95,6 +107,7 @@ func runWithBrowser(ctx context.Context, args []string, stdout, stderr io.Writer
 		if *interval < time.Second {
 			return errors.New("--interval must be at least 1s")
 		}
+		runner.BatchMode = true
 		label := *host
 		if label == "" {
 			label = "local Dom0"

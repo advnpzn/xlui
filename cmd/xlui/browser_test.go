@@ -27,7 +27,11 @@ func TestBrowserRouting(t *testing.T) {
 		t.Run(tc.executable, func(t *testing.T) {
 			dir := t.TempDir()
 			t.Setenv("PATH", dir)
-			script := "#!/bin/sh\nprintf '%s' '" + listing + "'\n"
+			script := "#!/bin/sh\n"
+			if tc.executable == "ssh" {
+				script += `[ "$*" = "-T -a -x -o ClearAllForwardings=yes -o BatchMode=yes -o StrictHostKeyChecking=yes -- bench LC_ALL=C xl list -v" ] || exit 1` + "\n"
+			}
+			script += "printf '%s' '" + listing + "'\n"
 			if err := os.WriteFile(filepath.Join(dir, tc.executable), []byte(script), 0700); err != nil {
 				t.Fatal(err)
 			}

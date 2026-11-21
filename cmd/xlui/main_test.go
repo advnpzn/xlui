@@ -30,7 +30,7 @@ func TestInventory(t *testing.T) {
 		want string
 	}{
 		{"local", []string{"list"}, "C\nlist\n-v\n"},
-		{"remote", []string{"--host", "ssh://operator@bench", "list"}, "-T\n--\nssh://operator@bench\nLC_ALL=C xl list -v\n"},
+		{"remote", []string{"--host", "ssh://operator@bench", "list"}, "-T\n-a\n-x\n-o\nClearAllForwardings=yes\n--\nssh://operator@bench\nLC_ALL=C xl list -v\n"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			var out bytes.Buffer

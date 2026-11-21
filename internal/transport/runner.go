@@ -17,6 +17,9 @@ var literalWord = regexp.MustCompile(`^[a-zA-Z0-9_./:@%+=,-]+$`)
 
 type Runner struct {
 	host string
+	// BatchMode requires a known host key and unattended authentication for
+	// background reads while the interactive browser owns the terminal.
+	BatchMode bool
 }
 
 func NewRunner(host string) (Runner, error) {
@@ -35,7 +38,13 @@ func (r Runner) Run(ctx context.Context, stdout, stderr io.Writer, program strin
 		for _, arg := range args {
 			words = append(words, shellWord(arg))
 		}
-		cmd = exec.CommandContext(ctx, "ssh", "-T", "--", r.host, strings.Join(words, " "))
+		// An inventory read needs neither forwarded credentials nor tunnels.
+		options := []string{"-T", "-a", "-x", "-o", "ClearAllForwardings=yes"}
+		if r.BatchMode {
+			options = append(options, "-o", "BatchMode=yes", "-o", "StrictHostKeyChecking=yes")
+		}
+		options = append(options, "--", r.host, strings.Join(words, " "))
+		cmd = exec.CommandContext(ctx, "ssh", options...)
 	}
 	// An xl or SSH process has no use for credentials for a different provider.
 	cmd.Env = slices.DeleteFunc(cmd.Environ(), func(entry string) bool {
