@@ -19,7 +19,7 @@ func TestReadOnlyResidentHostInspector(t *testing.T) {
 	host := xen.ResidentHost{Name: "pool member", UUID: "22222222-2222-4222-8222-222222222222"}
 	p := config.Profile{Name: "pool", Type: config.XAPI}
 	src := session.Source{
-		Read:             func(context.Context) ([]xen.Domain, error) { return []xen.Domain{vm}, nil },
+		Read: func(context.Context) ([]xen.Domain, error) { return []xen.Domain{vm}, nil },
 		ReadResidentHost: func(_ context.Context, id xen.Identity) (xen.ResidentHost, error) {
 			target <- id
 			return host, nil
@@ -50,11 +50,22 @@ func TestReadOnlyResidentHostInspector(t *testing.T) {
 	late := nextPlacementResult(t, w)
 	old := late.dialog.body.(*tview.TextView)
 	previous := old.GetText(false)
-	replacement := vm
-	replacement.UUID = "33333333-3333-4333-8333-333333333333"
-	w.applyUpdate(hostUpdate{h, session.Snapshot{Domains: []xen.Domain{replacement}, ObservedAt: h.view.latest.Add(time.Second)}})
+	halted := vm
+	halted.ID, halted.State = -1, "Halted"
+	w.applyUpdate(hostUpdate{h, session.Snapshot{Domains: []xen.Domain{halted}, ObservedAt: h.view.latest.Add(time.Second)}})
 	w.applyDialogResult(late)
 	if w.dialog != nil || old.GetText(false) != previous {
-		t.Fatal("accepted late host placement after replacement")
+		t.Fatal("accepted late host placement after the VM halted")
+	}
+
+	// Re-open the VM from the fresh inventory, rather than the gone instance.
+	h.view.key(tcell.NewEventKey(tcell.KeyEsc, 0, 0))
+	h.view.key(tcell.NewEventKey(tcell.KeyEnter, 0, 0))
+	if h.view.inspect == nil || h.view.inspect.domain.Identity() != halted.Identity() {
+		t.Fatal("expected to inspect the halted VM")
+	}
+	h.view.key(key)
+	if w.dialog != nil {
+		t.Fatal("offered a resident host lookup for a halted VM")
 	}
 }

@@ -17,6 +17,14 @@ func (b *browser) canReadDetail() bool {
 	return b.inspect != nil && !b.inspect.gone && b.lastError == nil
 }
 
+func (b *browser) canReadResidentHost() bool {
+	if b.residentHost == nil || !b.canReadDetail() {
+		return false
+	}
+	d := b.inspect.domain
+	return d.ID >= 0 && (d.State == "Running" || d.State == "Paused")
+}
+
 func (w *workspace) bindInspectorReads(h *liveSession, source session.Source) {
 	if source.ReadVCPUs != nil {
 		h.view.vcpus = func() {

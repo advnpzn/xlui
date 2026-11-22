@@ -220,7 +220,7 @@ func (b *browser) key(ev *tcell.EventKey) bool {
 	if b.inspect != nil {
 		if ev.Key() == tcell.KeyRune && ev.Rune() == 'v' && b.vcpus != nil && b.canReadDetail() {
 			b.vcpus()
-		} else if ev.Key() == tcell.KeyRune && ev.Rune() == 'h' && b.residentHost != nil && b.canReadDetail() {
+		} else if ev.Key() == tcell.KeyRune && ev.Rune() == 'h' && b.canReadResidentHost() {
 			b.residentHost()
 		} else if ev.Key() == tcell.KeyEsc {
 			b.inspect = nil
