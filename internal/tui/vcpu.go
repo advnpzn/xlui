@@ -26,6 +26,14 @@ func (b *browser) canReadResidentHost() bool {
 }
 
 func (w *workspace) bindInspectorReads(h *liveSession, source session.Source) {
+	if source.ReadNetwork != nil {
+		h.view.network = func() {
+			w.readDetail(h, "network interfaces", func(ctx context.Context, target xen.Identity) (string, error) {
+				rows, err := source.ReadNetwork(ctx, target)
+				return formatNetwork(rows, time.Now()), err
+			})
+		}
+	}
 	if source.ReadVCPUs != nil {
 		h.view.vcpus = func() {
 			w.readDetail(h, "vCPU placement", func(ctx context.Context, target xen.Identity) (string, error) {

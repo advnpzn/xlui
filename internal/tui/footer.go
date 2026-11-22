@@ -60,6 +60,9 @@ func (b *browser) drawFooter(screen tcell.Screen, width, top, height int) {
 
 	if b.inspect != nil {
 		add("[Esc Back]", tcell.KeyEsc, 0)
+		if b.network != nil && b.canReadDetail() {
+			add("[n Network]", tcell.KeyRune, 'n')
+		}
 		if b.canReadResidentHost() {
 			add("[h Host]", tcell.KeyRune, 'h')
 		}

@@ -22,39 +22,7 @@ var vcpuRow = regexp.MustCompile(`^.+?\s+([0-9]+)\s+([0-9]+)\s+(-|[0-9]+)\s+([r-
 // and does not include domain UUIDs in its result, so check for ID reuse
 // on both sides of the sample before exposing it.
 func ReadVCPUs(ctx context.Context, runner Runner, target xen.Identity) ([]xen.VCPU, error) {
-	check := func() error {
-		domains, err := ReadDomains(ctx, runner)
-		if err != nil {
-			return err
-		}
-		for _, d := range domains {
-			if d.Identity() == target {
-				return nil
-			}
-		}
-		return errors.New("selected domain is no longer in the inventory")
-	}
-	if err := check(); err != nil {
-		return nil, err
-	}
-	stdout, stderr := cappedOutput{limit: maxInventoryBytes}, cappedOutput{limit: 4096}
-	if err := runner.Run(ctx, &stdout, &stderr, "xl", "vcpu-list", strconv.Itoa(target.ID)); err != nil {
-		if detail := bytes.TrimSpace(stderr.buf.Bytes()); len(detail) != 0 {
-			return nil, fmt.Errorf("xl vcpu-list: %w (%q)", err, detail)
-		}
-		return nil, fmt.Errorf("xl vcpu-list: %w", err)
-	}
-	if stdout.truncated {
-		return nil, fmt.Errorf("xl vcpu-list exceeded %d bytes", stdout.limit)
-	}
-	rows, err := parseVCPUs(&stdout.buf, target.ID)
-	if err != nil {
-		return nil, err
-	}
-	if err := check(); err != nil {
-		return nil, err
-	}
-	return rows, nil
+	return readDomainDetail(ctx, runner, target, "vcpu-list", parseVCPUs)
 }
 
 func parseVCPUs(out *bytes.Buffer, domid int) ([]xen.VCPU, error) {
