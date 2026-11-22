@@ -78,8 +78,12 @@ func TestComparePoolInterfaces(t *testing.T) {
 					return test.seen, test.readErr
 				},
 			}
-			if err := comparePoolInterfaces(t.Context(), source, vm, want); (err == nil) != test.ok {
+			err := comparePoolInterfaces(t.Context(), source, vm, want)
+			if (err == nil) != test.ok {
 				t.Fatalf("comparison error = %v", err)
+			}
+			if test.name == "changed attachment" && !strings.Contains(err.Error(), "attachment: xe=true xlui=false") {
+				t.Fatalf("missing field values in mismatch: %v", err)
 			}
 		})
 	}

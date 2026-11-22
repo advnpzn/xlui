@@ -33,7 +33,7 @@ The test then creates a disposable Linux guest from the local TUI and edits its 
 On an authorized XCP-ng or XenServer pool, capture the interfaces of one VM with at least one configured VIF. Run this with your existing authenticated `xe` client. Keep the VM configuration and power state stable during the comparison.
 
 ```sh
-xe vif-list vm-uuid="$VM_UUID" params=vm-uuid,uuid,device,MAC,currently-attached,network-uuid > xe-vifs.txt
+xe vif-list vm-uuid="${VM_UUID:?set VM_UUID to the selected guest UUID}" params=vm-uuid,uuid,device,MAC,currently-attached,network-uuid > xe-vifs.txt
 ```
 
 Place the capture on your development workstation. Set `XLUI_XAPI_ENDPOINT` to the same pool's HTTPS coordinator, `XLUI_XAPI_USER` to a read-only account, and optionally `XLUI_XAPI_CA` to its private CA bundle. Run from the repository root in Bash.

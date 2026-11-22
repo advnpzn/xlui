@@ -23,6 +23,11 @@ var xeCapture = flag.String("xe-vifs", "", "xe vif-list capture from the selecte
 
 func TestLivePoolNetwork(t *testing.T) {
 	if *xeCapture == "" {
+		flag.Visit(func(f *flag.Flag) {
+			if f.Name == "xe-vifs" {
+				t.Fatal("-xe-vifs requires a nonempty capture path")
+			}
+		})
 		t.Skip("supply -xe-vifs to compare with an authorized live pool")
 	}
 	file, err := os.Open(*xeCapture)
@@ -76,9 +81,15 @@ func comparePoolInterfaces(ctx context.Context, source session.Source, vm string
 				return errors.New("xlui returned an unexpected or duplicate VIF")
 			}
 			seen[id] = true
-			if row.Device != vif.Device || !strings.EqualFold(row.MAC, vif.MAC) ||
-				!strings.EqualFold(row.NetworkUUID, vif.NetworkUUID) || row.Attached != vif.Attached {
-				return fmt.Errorf("device, MAC, network or attachment differs for VIF %s", vif.UUID)
+			switch {
+			case row.Device != vif.Device:
+				return fmt.Errorf("VIF %s device: xe=%q xlui=%q", id, vif.Device, row.Device)
+			case !strings.EqualFold(row.MAC, vif.MAC):
+				return fmt.Errorf("VIF %s MAC: xe=%q xlui=%q", id, vif.MAC, row.MAC)
+			case !strings.EqualFold(row.NetworkUUID, vif.NetworkUUID):
+				return fmt.Errorf("VIF %s network UUID: xe=%q xlui=%q", id, vif.NetworkUUID, row.NetworkUUID)
+			case row.Attached != vif.Attached:
+				return fmt.Errorf("VIF %s attachment: xe=%t xlui=%t", id, vif.Attached, row.Attached)
 			}
 		}
 		return nil
