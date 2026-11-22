@@ -60,7 +60,10 @@ func (b *browser) drawFooter(screen tcell.Screen, width, top, height int) {
 
 	if b.inspect != nil {
 		add("[Esc Back]", tcell.KeyEsc, 0)
-		if b.canReadVCPUs() {
+		if b.residentHost != nil && b.canReadDetail() {
+			add("[h Host]", tcell.KeyRune, 'h')
+		}
+		if b.vcpus != nil && b.canReadDetail() {
 			add("[v vCPUs]", tcell.KeyRune, 'v')
 		}
 	} else {

@@ -106,9 +106,7 @@ func (w *workspace) connect(p config.Profile, password string) {
 	h.view.nextSession = w.next
 	h.view.onLayout = func(layout Layout) { w.layout = layout }
 	h.view.settings = func() { w.settings(h) }
-	if source.ReadVCPUs != nil {
-		h.view.vcpus = func() { w.vcpuPlacement(h, source.ReadVCPUs) }
-	}
+	w.bindInspectorReads(h, source)
 	if h.prepare != nil {
 		h.view.guests = func() { w.guestMenu(h) }
 	}
@@ -170,7 +168,7 @@ func (w *workspace) applyUpdate(update hostUpdate) {
 	}
 	h.view.update(update.snapshot)
 	if d := w.dialog; w.active == h && d != nil && d.inspector != nil {
-		if d.inspector != h.view.inspect || !h.view.canReadVCPUs() {
+		if d.inspector != h.view.inspect || !h.view.canReadDetail() {
 			d.back()
 		}
 	}

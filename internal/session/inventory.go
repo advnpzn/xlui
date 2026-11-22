@@ -137,4 +137,6 @@ type Source struct {
 	ReadVCPUs VCPUReader // optional on-demand placement reader
 	Read      Reader
 	Close     func()
+
+	ReadResidentHost func(context.Context, xen.Identity) (xen.ResidentHost, error)
 }
