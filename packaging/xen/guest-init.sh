@@ -8,7 +8,7 @@ mount -t sysfs sysfs /sys
 mkdir -p /dev/pts /dev/shm
 mount -t devpts devpts /dev/pts
 mount -t tmpfs tmpfs /dev/shm
-for module in xen-evtchn xen-privcmd xen-gntdev xenfs; do
+for module in xen-evtchn xen-privcmd xen-gntdev xenfs xen-netback; do
   /bin/busybox insmod "/modules/$module.ko"
 done
 mount -t xenfs xenfs /proc/xen

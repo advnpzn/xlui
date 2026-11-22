@@ -3,6 +3,7 @@
 import re
 import sys
 import tempfile
+import time
 
 import pexpect
 
@@ -110,6 +111,47 @@ def wait_for_linux(console):
           "i=$((i+1)); [ $i -lt 25 ] || break; sleep 1; done; [ $i -lt 25 ]")
 
 
+def check_guest_network(console, domid, uuid):
+    mac = "00:16:3e:00:00:42"
+    shell(console, f"xl network-attach {domid} mac={mac} script=/etc/xen/scripts/vif-xlui-test")
+    deadline = time.monotonic() + 30
+    # xl columns: index, backend, MAC, handle, frontend state, event channel,
+    # ring references and backend path. Wait for both halves of the device.
+    connected = re.compile(rf"^\s*(\d+)\s+0\s+{mac}\s+\d+\s+4\s+\S+\s+\S+\s+(\S+)\s*$", re.M)
+    while True:
+        listing = shell(console, f"xl network-list {domid}")
+        row = connected.search(listing)
+        if row:
+            vif, path = row.groups()
+            if path != f"/local/domain/0/backend/vif/{domid}/{vif}":
+                raise RuntimeError(f"Unexpected backend for test VIF: {path}")
+            if shell(console, f"xenstore-read {path}/state") == "4":
+                break
+        if time.monotonic() >= deadline:
+            raise RuntimeError(f"Test VIF did not connect on domain {domid}:\n{listing}")
+        time.sleep(1)
+    print(listing, flush=True)
+
+    for client in (LOCAL, SSH):
+        print(f"Checking the connected guest VIF with {client}", flush=True)
+        send_line(console, client + " --read-only --interval 10s; printf '\\nxlui-exit=%d\\n' \"$?\"")
+        console.expect_exact("xlui-lab")
+        # Select the guest from the two-domain inventory, then check its identity.
+        console.send("\x1b[B\r")
+        console.expect_exact(uuid)
+        console.send("n")
+        console.expect_exact("NETWORK INTERFACES")
+        console.expect_exact(f"VIF {vif}")
+        console.expect_exact(f"MAC {mac}")
+        console.expect_exact("Backend domain 0")
+        console.expect_exact("Xenbus state Connected (4)")
+        console.expect_exact(path)
+        console.send("\x1b")
+        console.expect_exact("UUID")
+        console.send("q")
+        console.expect(r"(?:^|[\r\n])xlui-exit=0\r*\n")
+
+
 def check_guest_lifecycle(console):
     config = "/etc/xen/xlui-lab.cfg"
     shell(console, f"test ! -e {config} && ! xl domid xlui-lab >/dev/null 2>&1")
@@ -138,9 +180,11 @@ def check_guest_lifecycle(console):
     print("Starting the saved definition over SSH", flush=True)
     guest_action(console, SSH, "s", "Start from saved definition", "START FROM DEFINITION",
                  ["xlui-lab\t", "\r"], uuid)
-    if guest_id(console, uuid, 224) == first:
+    second = guest_id(console, uuid, 224)
+    if second == first:
         raise RuntimeError("Expected a newly booted domain")
     wait_for_linux(console)
+    check_guest_network(console, second, uuid)
 
 
 if __name__ == "__main__":
@@ -157,4 +201,4 @@ if __name__ == "__main__":
         except (pexpect.TIMEOUT, pexpect.EOF):
             log.seek(0)
             sys.exit(f"Serial check failed. Last console output: {log.read()[-3000:]!r}")
-    print("Verified live ARM64 Xen Dom0 inventory, inspector and vCPU placement, and Linux guest creation, saved memory edits and restart.")
+    print("Verified live ARM64 Xen Dom0 inventory, inspector and vCPU placement, Linux guest creation, saved memory edits and restart, and a connected guest VIF through the local and SSH inspectors.")

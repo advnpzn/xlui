@@ -32,9 +32,24 @@ ln -s ../lib/xen-4.20/bin/xl usr/bin/xl
 mkdir -p dev proc sys tmp run/{sshd,xen,xenstored} var/lib/{xen,xenstored} var/log/xen root/.ssh modules
 install -m 0755 "$binary" usr/bin/xlui
 install -m 0755 "$scripts/guest-init.sh" init
-for module in xen-evtchn xen-privcmd xen-gntdev xenfs; do
+for module in xen-evtchn xen-privcmd xen-gntdev xenfs xen-netback; do
   xz -dc "$(find usr/lib/modules -name "$module.ko.xz")" > "modules/$module.ko"
 done
+
+# Bring up the isolated backend and complete Xen's hotplug handshake.
+cat > etc/xen/scripts/vif-xlui-test <<'HOTPLUG'
+#!/bin/busybox sh
+set -eu
+case "$1" in
+  online)
+    /bin/busybox ip link set "$vif" up
+    /usr/bin/xenstore-write "$XENBUS_PATH/hotplug-status" connected
+    ;;
+  offline) exit 0 ;;
+  *) exit 1 ;;
+esac
+HOTPLUG
+chmod +x etc/xen/scripts/vif-xlui-test
 
 # All keys and accounts exist only in the guest image. QEMU has no NIC.
 printf '%s\n' 'root:x:0:0:root:/root:/bin/sh' 'sshd:x:220:220::/run/sshd:/bin/sh' > etc/passwd
@@ -66,13 +81,15 @@ SSH
 
 # The diskless test guest reuses Dom0's kernel and runs a static BusyBox init.
 kernel=(boot/vmlinuz-*)
-mkdir -p guest ../domu/{bin,dev}
+mkdir -p guest ../domu/{bin,dev,modules}
 ln "${kernel[0]}" guest/Image
 cp usr/bin/busybox ../domu/bin/
+xz -dc "$(find usr/lib/modules -name xen-netfront.ko.xz)" > ../domu/modules/xen-netfront.ko
 cat > ../domu/init <<'INIT'
 #!/bin/busybox sh
 set -eu
 /bin/busybox mount -t devtmpfs devtmpfs /dev
+/bin/busybox insmod /modules/xen-netfront.ko
 echo XLUI-DISPOSABLE-GUEST-READY > /dev/hvc0
 exec /bin/busybox sleep 3600
 INIT
