@@ -20,20 +20,30 @@ def check_guest(console):
         " && test -x /usr/bin/xlui && printf 'xlui-arch=%s\\n' \"$(uname -m)\""
     )
     console.expect_exact("xlui-arch=aarch64")
-    console.sendline(
+    run_xlui = (
         "/usr/bin/xlui --read-only --interval 10s; printf 'xlui-exit=%d\\n' \"$?\""
     )
+    console.sendline(run_xlui)
     console.expect_exact("Domain-0")
     console.send("\r")
     console.expect_exact("UUID")
     console.send(",")
     console.expect_exact("SETTINGS")
-    console.send("\x1b")
+    # Interval -> layout -> domain order. Choose allocated memory descending.
+    console.send("\t\t\r")
+    console.expect_exact("Allocated desc")
+    console.send("\x1b[B" * 3 + "\r")
+    console.send("\t\t\r")  # Apply + save default.
     console.expect_exact("UUID")
-    console.send("\x1b")
-    console.expect_exact("Domain-0")
-    console.send("\x1b[B")
+    console.send("q")
+    console.expect_exact("xlui-exit=0")
+
+    # The fixture supplies Dom0 first. After restart the 2048 MiB worker must
+    # be selected first, followed by Dom0 (670 MiB). Check their identities.
+    console.sendline(run_xlui)
+    console.expect_exact("worker")
     console.send("\r")
+    console.expect_exact("UUID")
     console.expect_exact("b586dd4f-32ba-478e-a5ca-9c2640c7ef54")
     console.send("n")
     console.expect_exact("NETWORK INTERFACES")
@@ -41,6 +51,11 @@ def check_guest(console):
     console.expect_exact("Backend domain 1")
     console.send("\x1b")
     console.expect_exact("UUID")
+    console.send("\x1b")
+    console.expect_exact("Domain-0")
+    console.send("\x1b[B\r")
+    console.expect_exact("UUID")
+    console.expect_exact("00000000-0000-0000-0000-000000000000")
     console.send("q")
     console.expect_exact("xlui-exit=0")
 
@@ -57,7 +72,7 @@ def main():
         except (pexpect.TIMEOUT, pexpect.EOF) as exc:
             # Keep the failure diagnostic short, including recently consumed output.
             sys.exit(f"Serial check failed: {exc}")
-    print("Arm64 guest booted; xlui inventory, settings and populated network interface inspection verified.")
+    print("Arm64 guest booted; xlui inventory, populated network interface inspection and saved domain ordering verified.")
 
 
 if __name__ == "__main__":

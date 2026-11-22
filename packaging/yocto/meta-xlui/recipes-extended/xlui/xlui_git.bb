@@ -9,7 +9,7 @@ GO_IMPORT = "github.com/advnpzn/xlui"
 GO_INSTALL = "${GO_IMPORT}/cmd/xlui"
 XLUI_SRC_URI ?= "git://github.com/advnpzn/xlui.git;protocol=https;branch=master"
 SRC_URI = "${XLUI_SRC_URI};destsuffix=${GO_SRCURI_DESTSUFFIX}"
-SRCREV = "087169a1a7bba3719fab4dbf59dd3f72a071453c"
+SRCREV = "29121199e004a51fb9ac465848e352cf077d33a4"
 
 require xlui-go-mods.inc
 require xlui-licenses.inc
