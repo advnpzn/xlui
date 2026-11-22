@@ -28,6 +28,26 @@ The script downloads Debian trixie ARM64 packages using isolated APT state and D
 
 The test then creates a disposable Linux guest from the local TUI and edits its saved memory over SSH. It checks that the running allocation stays at 192 MiB, stops the identified test guest, and starts it again from the saved definition. A fresh guest console readiness marker, the original UUID, and a 224 MiB allocation confirm the second boot. After the restart, the test hot-plugs a Xen network interface into the guest and compares the local and SSH network inspectors with native `xl network-list`. The interface has no bridge or external uplink. The harness uses 1200 MiB of emulated RAM and removes its temporary files on exit. The captured `list-v-debian-4.20-arm64.txt` inventory also runs in the ordinary Go tests.
 
+## Compare XAPI network inspection with a live pool
+
+On an authorized XCP-ng or XenServer pool, capture the interfaces of one VM with at least one configured VIF. Run this with your existing authenticated `xe` client. Keep the VM configuration and power state stable during the comparison.
+
+```sh
+xe vif-list vm-uuid="$VM_UUID" params=vm-uuid,uuid,device,MAC,currently-attached,network-uuid > xe-vifs.txt
+```
+
+Place the capture on your development workstation. Set `XLUI_XAPI_ENDPOINT` to the same pool's HTTPS coordinator, `XLUI_XAPI_USER` to a read-only account, and optionally `XLUI_XAPI_CA` to its private CA bundle. Run from the repository root in Bash.
+
+```bash
+(
+  read -rs -p 'XAPI password: ' XLUI_XAPI_PASSWORD && echo
+  export XLUI_XAPI_PASSWORD
+  go test -count=1 -v -run '^TestLivePoolNetwork$' ./cmd/xlui -args -xe-vifs=TEXT_FILE
+)
+```
+
+Replace `TEXT_FILE` with the absolute path to your capture. Export the endpoint, username and optional CA before running the command. The check opens the same inventory and network readers as the inspector, finds the VM by UUID and compares the complete set of VIF UUIDs, devices, MACs, network UUIDs and attachment states. It only reads the pool. Repeat with a running VM and a halted VM to cover both. Record the pool product, version, VM state and outcome when reporting compatibility. Keep the capture private.
+
 ## Where to test a change
 
 | Change | Evidence to include in the pull request |
