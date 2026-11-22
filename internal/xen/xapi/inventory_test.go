@@ -3,6 +3,7 @@ package xapi_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
@@ -186,6 +187,20 @@ func TestCancellationReleasesSession(t *testing.T) {
 	)
 	if _, err := xapi.List(ctx, server.URL, testUser, testPassword, server.Client()); err == nil {
 		t.Fatal("expected cancelled inventory to fail")
+	}
+}
+
+func TestListCanceledAfterInventoryReply(t *testing.T) {
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	server := xenServer(t,
+		rpcStep{method: "session.login_with_password", result: testSession},
+		rpcStep{method: "VM.get_all_records", result: map[string]any{}},
+		rpcStep{method: "session.logout", onCall: func(context.Context) { cancel() }},
+	)
+	vms, err := xapi.List(ctx, server.URL, testUser, testPassword, server.Client())
+	if vms != nil || !errors.Is(err, context.Canceled) {
+		t.Fatalf("List after cancellation returned %v, %v", vms, err)
 	}
 }
 

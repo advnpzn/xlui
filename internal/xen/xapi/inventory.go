@@ -64,6 +64,10 @@ func List(ctx context.Context, endpoint, username, password string, client *http
 	for _, r := range records {
 		vms = append(vms, VM{r.UUID, *r.Name, r.PowerState, *r.ControlDomain})
 	}
+	// A complete response can race cancellation, including during logout.
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	return vms, nil
 }
 
