@@ -30,6 +30,17 @@ def check_guest(console):
     console.expect_exact("SETTINGS")
     console.send("\x1b")
     console.expect_exact("UUID")
+    console.send("\x1b")
+    console.expect_exact("Domain-0")
+    console.send("\x1b[B")
+    console.send("\r")
+    console.expect_exact("b586dd4f-32ba-478e-a5ca-9c2640c7ef54")
+    console.send("n")
+    console.expect_exact("NETWORK INTERFACES")
+    console.expect_exact("00:16:3e:ab:cd:02")
+    console.expect_exact("Backend domain 1")
+    console.send("\x1b")
+    console.expect_exact("UUID")
     console.send("q")
     console.expect_exact("xlui-exit=0")
 
@@ -46,7 +57,7 @@ def main():
         except (pexpect.TIMEOUT, pexpect.EOF) as exc:
             # Keep the failure diagnostic short, including recently consumed output.
             sys.exit(f"Serial check failed: {exc}")
-    print("Arm64 guest booted; xlui inventory, inspector, settings and exit verified.")
+    print("Arm64 guest booted; xlui inventory, settings and populated network interface inspection verified.")
 
 
 if __name__ == "__main__":

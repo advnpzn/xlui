@@ -40,7 +40,8 @@ When upgrading, update `SRCREV`, review the pinned revision's Go toolchain requi
 CI installs the staged recipe executable into a temporary copy of Yocto 6.0's
 published `core-image-minimal` root filesystem. It boots the pinned arm64
 kernel and image with QEMU system emulation, logs in through the serial console,
-and exercises inventory, the inspector and settings in read-only mode.
-A test-only `xl list -v` command supplies the inventory. The guest runs without
-network access. Building your own distribution with `IMAGE_INSTALL` also tests
+and exercises inventory, settings and the network interface inspector in read-only
+mode. A test-only `xl` supplies domain and VIF listings. The serial check selects
+the fixture guest and verifies its MAC address and backend domain ID. The Yocto
+guest has no network device. Separate Xen Dom0 CI exercises the real toolstack. Building your own distribution with `IMAGE_INSTALL` also tests
 its package dependencies, image customization and target toolstack.
