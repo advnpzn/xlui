@@ -59,7 +59,7 @@ func (g *dashboard) sample(s session.Snapshot) {
 			t.boot = d.StartedAt
 		}
 		hist[k] = t
-		p := observation{math.NaN(), math.NaN()}
+		p := observation{cpu: math.NaN(), ram: guestUsedMiB(d)}
 		if v, ok := s.CPUPercent(d); ok {
 			p.cpu = v
 			g.sum.cpu += p.cpu
@@ -68,9 +68,6 @@ func (g *dashboard) sample(s session.Snapshot) {
 		if d.MemoryMiB >= 0 {
 			g.sum.ram += float64(d.MemoryMiB)
 			g.mems++
-		}
-		if d.GuestUsedKiB != nil {
-			p.ram = float64(*d.GuestUsedKiB) / 1024
 		}
 		if d.VCPUs > 0 {
 			g.vcpus += d.VCPUs
@@ -114,11 +111,14 @@ func memoryLabel(mib float64) string {
 	}
 	return fmt.Sprintf("%.0f MiB", mib)
 }
-func guestMemory(d xen.Domain) string {
+func guestUsedMiB(d xen.Domain) float64 {
 	if d.GuestUsedKiB == nil {
-		return "—"
+		return math.NaN()
 	}
-	return memoryLabel(float64(*d.GuestUsedKiB) / 1024)
+	return float64(*d.GuestUsedKiB) / 1024
+}
+func guestMemory(d xen.Domain) string {
+	return memoryLabel(guestUsedMiB(d))
 }
 func percent(v float64, valid bool) string {
 	if !valid || math.IsNaN(v) {

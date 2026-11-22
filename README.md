@@ -147,7 +147,7 @@ For a local or SSH connection, inspect a domain and press `v` to sample its vCPU
 
 Press `-` to refresh faster or `+` to refresh slower in 100 ms steps, down to 100 ms. The header shows the active session’s interval. Changes take effect in the dashboard and inspector and preserve chart history. Use `xlui --host bench --interval 500ms` to start sessions at a different interval. If collection takes longer than the selected interval, xlui skips missed polls. Charts advance as samples arrive.
 
-If a refresh fails, **Stale** and a timestamp identify the last successful sample. The dashboard keeps that inventory visible and displays the latest error below the header when space allows. Open the inspector to see cumulative CPU time where available and up to 60 samples of CPU and allocated memory. For running or paused XenAPI guests that report a boot time, the inspector shows the UTC start time and uptime at the last successful sample. Inspector charts start when opened and mark gaps with `?`.
+If a refresh fails, **Stale** and a timestamp identify the last successful sample. The dashboard keeps that inventory visible and displays the latest error below the header when space allows. Open the inspector to see cumulative CPU time where available and separate charts for CPU load, allocated memory and guest-reported used memory. Each chart retains up to 60 samples. For running or paused XenAPI guests that report a boot time, the inspector shows the UTC start time and uptime at the last successful sample. Inspector charts start when opened. A missing guest usage reading or a missed sample appears as `?`. Scroll down in a short terminal to see the charts.
 
 ## Headless inventory
 
