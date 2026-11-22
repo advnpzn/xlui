@@ -111,7 +111,7 @@ def wait_for_linux(console):
           "i=$((i+1)); [ $i -lt 25 ] || break; sleep 1; done; [ $i -lt 25 ]")
 
 
-def check_guest_network(console, domid, uuid):
+def check_guest_inspectors(console, domid, uuid):
     mac = "00:16:3e:00:00:42"
     shell(console, f"xl network-attach {domid} mac={mac} script=/etc/xen/scripts/vif-xlui-test")
     deadline = time.monotonic() + 30
@@ -132,13 +132,19 @@ def check_guest_network(console, domid, uuid):
         time.sleep(1)
     print(listing, flush=True)
 
+    # Stand in for guest tools on this diskless image. The synthetic counters
+    # represent 1536 KiB used; the current-value badge rounds this to 2 MiB.
+    shell(console, f'p=/local/domain/{domid}; test "$(xenstore-read "$p/vm")" = /vm/{uuid} '
+          '&& xenstore-write "$p/data/meminfo_total" 4096 "$p/data/meminfo_free" 2560')
     for client in (LOCAL, SSH):
-        print(f"Checking the connected guest VIF with {client}", flush=True)
+        print(f"Checking synthetic guest memory and the connected VIF with {client}", flush=True)
         send_line(console, client + " --read-only --interval 10s; printf '\\nxlui-exit=%d\\n' \"$?\"")
         console.expect_exact("xlui-lab")
         # Select the guest from the two-domain inventory, then check its identity.
         console.send("\x1b[B\r")
         console.expect_exact(uuid)
+        # A terminal can move its cursor between the value and unit.
+        console.expect(r"1\.5(?: |\x1b\[[0-?]*[ -/]*[@-~])+MiB")
         console.send("n")
         console.expect_exact("NETWORK INTERFACES")
         console.expect_exact(f"VIF {vif}")
@@ -184,7 +190,7 @@ def check_guest_lifecycle(console):
     if second == first:
         raise RuntimeError("Expected a newly booted domain")
     wait_for_linux(console)
-    check_guest_network(console, second, uuid)
+    check_guest_inspectors(console, second, uuid)
 
 
 if __name__ == "__main__":
@@ -201,4 +207,4 @@ if __name__ == "__main__":
         except (pexpect.TIMEOUT, pexpect.EOF):
             log.seek(0)
             sys.exit(f"Serial check failed. Last console output: {log.read()[-3000:]!r}")
-    print("Verified live ARM64 Xen Dom0 inventory, inspector and vCPU placement, Linux guest creation, saved memory edits and restart, and a connected guest VIF through the local and SSH inspectors.")
+    print("Verified live ARM64 Xen Dom0 inventory, inspector and vCPU placement, Linux guest creation, saved memory edits and restart, and synthetic guest memory and a connected VIF through the local and SSH inspectors.")

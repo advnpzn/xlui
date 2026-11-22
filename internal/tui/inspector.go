@@ -11,13 +11,13 @@ import (
 	"github.com/rivo/tview"
 )
 
-// The inspector keeps two histories for one instance. Closing the inspector
-// releases both and a different selection always starts with fresh histories.
+// Each inspector collects histories for one instance while it is open.
 type inspector struct {
 	key        domainKey
 	domain     xen.Domain
 	cpu        widgets.Series
 	memory     widgets.Series
+	guestUsed  widgets.Series
 	sequence   uint64
 	observedAt time.Time
 	rate       string
@@ -43,6 +43,7 @@ func (i *inspector) observe(s session.Snapshot) {
 		missed := s.Sequence - i.sequence - 1
 		i.cpu.Skip(missed)
 		i.memory.Skip(missed)
+		i.guestUsed.Skip(missed)
 	}
 	i.sequence = s.Sequence
 	i.dirty = true
@@ -54,6 +55,7 @@ func (i *inspector) observe(s session.Snapshot) {
 			i.rate = percent(pct, ok)
 			i.cpu.Push(pct, ok)
 			i.memory.Push(float64(d.MemoryMiB), s.Err == nil && d.MemoryMiB >= 0)
+			i.guestUsed.Push(guestUsedMiB(d), s.Err == nil && d.GuestUsedKiB != nil)
 			return
 		}
 	}
@@ -73,6 +75,7 @@ func (i *inspector) render(width int) *tview.TextView {
 	d := i.domain
 	cpuLine, cpuScale := i.cpu.Plot(width, "%")
 	memLine, memScale := i.memory.Plot(width, "MiB")
+	usedLine, usedScale := i.guestUsed.Plot(width, "MiB")
 	duration := "—"
 	if d.CPUSeconds >= 0 {
 		duration = fmt.Sprintf("%.1f s", d.CPUSeconds)
@@ -82,7 +85,8 @@ func (i *inspector) render(width int) *tview.TextView {
 		uptime := i.observedAt.Sub(d.StartedAt).Truncate(time.Second)
 		boot = fmt.Sprintf("\nStarted    %s\nUptime     %s", d.StartedAt.UTC().Format(time.RFC3339), uptime)
 	}
-	i.view.SetText(fmt.Sprintf("%s\n\nUUID       %s\nID         %s\nState      %s%s\nAllocated  %s\nGuest used %s\nvCPUs      %s\nCPU load   %s (100%% = one core)\nCPU time   %s\n\nCPU      %s\n%s\nMemory   %s\n%s\nLast %d samples while open | newest right | ? unavailable",
-		terminal.SingleLine(d.Name), terminal.SingleLine(d.UUID), number(d.ID), terminal.SingleLine(stateLabel(d.State)), boot, memoryLabel(float64(d.MemoryMiB)), guestMemory(d), number(d.VCPUs), i.rate, duration, cpuScale, cpuLine, memScale, memLine, widgets.Window))
+	i.view.SetText(fmt.Sprintf("%s\n\nUUID       %s\nID         %s\nState      %s%s\nAllocated  %s\nGuest used %s\nvCPUs      %s\nCPU load   %s (100%% = one core)\nCPU time   %s\n\nCPU        %s\n%s\nAllocated  %s\n%s\nGuest used %s\n%s\nLast %d samples while open | newest right | ? unavailable",
+		terminal.SingleLine(d.Name), terminal.SingleLine(d.UUID), number(d.ID), terminal.SingleLine(stateLabel(d.State)), boot, memoryLabel(float64(d.MemoryMiB)), guestMemory(d), number(d.VCPUs), i.rate, duration,
+		cpuScale, cpuLine, memScale, memLine, usedScale, usedLine, widgets.Window))
 	return i.view
 }
