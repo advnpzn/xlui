@@ -137,7 +137,7 @@ Mouse controls are enabled automatically in terminals that support mouse reporti
 
 Press `o` to cycle through provider order, name, CPU load, allocated memory and guest-used memory. Resource readings sort highest first, with unavailable readings last. Each connection remembers its order while open. Sorting and filtering use the latest cached observation.
 
-The built-in refresh interval is **2s**. Press `,` from the dashboard or inspector to enter an exact interval such as `750ms` or `5s`. Select **Dashboard layout** to choose Overview, Inventory or Split. **Apply** changes the active session’s interval and the layout across open sessions. **Apply + save default** also saves both choices for future runs. xlui stores the default in `preferences.json` alongside the connection profiles. An explicit `--interval` takes precedence for new sessions in that run.
+The built-in refresh interval is **2s**. Press `,` from the dashboard or inspector to enter an exact interval such as `750ms` or `5s`. Select **Dashboard layout** to choose Overview, Inventory or Split. Select **Domain order** to choose the sort for the active connection. **Apply** updates that connection’s interval and order, and changes the layout across open sessions. **Apply + save default** also sets the defaults for newly opened connections and future runs. xlui stores the default in `preferences.json` alongside the connection profiles. An explicit `--interval` takes precedence for new sessions in that run.
 
 On a XenAPI connection, inspect a running or paused VM and press `h` to look up its current host label and UUID on the pool coordinator. This read-only snapshot checks for migration during the lookup. Press Esc and `h` to sample again.
 

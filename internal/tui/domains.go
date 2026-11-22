@@ -100,7 +100,7 @@ func (b *browser) update(s session.Snapshot) {
 	if s.Err != nil {
 		b.stats.skip(1)
 	}
-	lostCPU := b.rows.order == orderCPU && b.lastError == nil && s.Err != nil
+	lostCPU := b.rows.order == config.OrderCPU && b.lastError == nil && s.Err != nil
 	b.lastError = s.Err
 	selected, _ := b.selected()
 	b.rows.Snapshot = s
@@ -248,9 +248,7 @@ func (b *browser) key(ev *tcell.EventKey) bool {
 			return false
 		}
 		if ev.Rune() == 'o' {
-			selected, _ := b.selected()
-			b.rows.order = (b.rows.order + 1) % domainOrder(len(orderNames))
-			b.project(selected, false)
+			b.setOrder((b.rows.order + 1) % config.DomainOrder(len(orderNames)))
 			return false
 		}
 		if ev.Rune() == '/' {

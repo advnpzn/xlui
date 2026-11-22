@@ -28,9 +28,11 @@ func (w *workspace) settings(h *liveSession) {
 	form.AddFormItem(field)
 	layoutField := tview.NewDropDown().SetLabel("Dashboard layout").SetOptions(layoutNames[:], nil).SetCurrentOption(int(w.layout))
 	form.AddFormItem(layoutField)
+	orderField := tview.NewDropDown().SetLabel("Domain order").SetOptions(orderNames[:], nil).SetCurrentOption(int(h.view.rows.order))
+	form.AddFormItem(orderField)
 	before := w.preferences.saved
 	hint := func() string {
-		text := fmt.Sprintf("%s · Defaults %s · %s", h.profile.Name, w.preferences.effective(), layoutNames[w.preferences.saved.Layout])
+		text := fmt.Sprintf("%s · Defaults %s · %s · %s", h.profile.Name, w.preferences.effective(), layoutNames[w.preferences.saved.Layout], orderNames[w.preferences.saved.Order])
 		if w.interval > 0 {
 			text += fmt.Sprintf(" · New sessions use --interval %s", w.interval)
 		}
@@ -44,9 +46,11 @@ func (w *workspace) settings(h *liveSession) {
 			return
 		}
 		option, _ := layoutField.GetCurrentOption()
-		after := config.Preferences{Interval: interval, Layout: Layout(option)}
+		order, _ := orderField.GetCurrentOption()
+		after := config.Preferences{Interval: interval, Layout: Layout(option), Order: config.DomainOrder(order)}
 		applyToView := func() {
 			w.layout = after.Layout
+			h.view.setOrder(after.Order)
 			h.view.inventory.SetInterval(after.Interval)
 			back()
 		}

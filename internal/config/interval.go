@@ -12,9 +12,11 @@ const MinInterval = 100 * time.Millisecond
 type Preferences struct {
 	Interval time.Duration
 	Layout   Layout
+	Order    DomainOrder
 }
 
 type preferencesFile struct {
+	DefaultOrder    string `json:"default_order,omitempty"`
 	DefaultLayout   string `json:"default_layout,omitempty"`
 	Version         int    `json:"version"`
 	DefaultInterval string `json:"default_interval,omitempty"`
@@ -52,6 +54,12 @@ func (s Store) LoadPreferences() (Preferences, error) {
 			return Preferences{}, err
 		}
 	}
+	if file.DefaultOrder != "" {
+		prefs.Order, err = parseOrder(file.DefaultOrder)
+		if err != nil {
+			return Preferences{}, err
+		}
+	}
 	return prefs, nil
 }
 
@@ -62,6 +70,9 @@ func (s Store) SavePreferences(before, after Preferences) error {
 	}
 	if int(after.Layout) >= len(layouts) {
 		return errors.New("unsupported default layout")
+	}
+	if int(after.Order) >= len(orders) {
+		return errors.New("unsupported default domain order")
 	}
 	path := s.preferencesPath()
 	lock, err := lockConfig(path)
@@ -82,6 +93,9 @@ func (s Store) SavePreferences(before, after Preferences) error {
 	}
 	if after.Layout != Overview {
 		file.DefaultLayout = layouts[after.Layout]
+	}
+	if after.Order != OrderProvider {
+		file.DefaultOrder = orders[after.Order]
 	}
 	return writeJSON(path, file)
 }
