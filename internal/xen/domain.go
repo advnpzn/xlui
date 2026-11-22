@@ -40,3 +40,9 @@ type VCPU struct {
 	Hard    string // allowed physical CPUs
 	Soft    string // preferred physical CPUs
 }
+
+// ResidentHost identifies the pool member currently hosting a VM.
+type ResidentHost struct {
+	Name string
+	UUID string
+}
