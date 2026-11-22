@@ -21,7 +21,8 @@ func TestSessionSettings(t *testing.T) {
 	second := config.Profile{Name: "bench", Type: config.SSH, Address: "bench"}
 	open := func(config.Profile, string) (session.Source, error) {
 		return session.Source{Read: func(context.Context) ([]xen.Domain, error) {
-			return []xen.Domain{{ID: 1, UUID: "guest", Name: "guest"}}, nil
+			used := int64(1024)
+			return []xen.Domain{{ID: 1, UUID: "guest", Name: "guest"}, {ID: 2, UUID: "other", Name: "other", GuestUsedKiB: &used}}, nil
 		}}, nil
 	}
 	w := newWorkspace(t.Context(), initial, 0, open, store)
@@ -30,6 +31,9 @@ func TestSessionSettings(t *testing.T) {
 	sample := <-w.updates
 	w.active.view.update(sample.snapshot)
 	first := w.active
+	w.connect(config.Profile{Name: "already open", Type: config.Local}, "")
+	other := w.active
+	w.activate(first)
 	if first.view.inventory.Interval() != DefaultInterval {
 		t.Fatal("missing preference did not use the built-in default")
 	}
@@ -51,6 +55,11 @@ func TestSessionSettings(t *testing.T) {
 		field.SetText(value)
 		key(tcell.KeyTab, 0)
 		// Select Split by keyboard. The menu starts on the active layout.
+		key(tcell.KeyEnter, 0)
+		key(tcell.KeyEnd, 0)
+		key(tcell.KeyEnter, 0)
+		key(tcell.KeyTab, 0)
+		// Choose guest-used memory, the final domain order in the menu.
 		key(tcell.KeyEnter, 0)
 		key(tcell.KeyEnd, 0)
 		key(tcell.KeyEnter, 0)
@@ -78,6 +87,10 @@ func TestSessionSettings(t *testing.T) {
 	if w.dialog != nil || first.view.inventory.Interval() != 750*time.Millisecond || first.view.layout != Split {
 		t.Fatal("Apply did not change the active session")
 	}
+	assertVisibleIDs(t, first.view, 2, 1)
+	if other.view.rows.order != config.OrderProvider {
+		t.Fatal("Apply changed another open connection's order")
+	}
 	if got, err := store.LoadPreferences(); got != (config.Preferences{}) || err != nil {
 		t.Fatalf("Apply persisted %+v: %v", got, err)
 	}
@@ -93,10 +106,18 @@ func TestSessionSettings(t *testing.T) {
 		t.Fatal("saving the interval replaced the session or inspector")
 	}
 	w.connect(second, "")
-	if w.active.view.inventory.Interval() != 5*time.Second || w.active.view.layout != Split {
-		t.Fatal("new connection did not inherit saved interval")
+	if w.active.view.inventory.Interval() != 5*time.Second || w.active.view.layout != Split || w.active.view.rows.order != config.OrderGuestUsed {
+		t.Fatal("new connection did not inherit saved settings")
 	}
-	if err := store.SavePreferences(config.Preferences{Interval: 5 * time.Second, Layout: config.Split}, config.Preferences{Interval: time.Minute, Layout: config.Inventory}); err != nil {
+	// Cycling wraps guest-used to provider order on this connection only.
+	key(tcell.KeyRune, 'o')
+	key(tcell.KeyRune, ',')
+	index, _ := w.dialog.body.(*tview.Form).GetFormItem(2).(*tview.DropDown).GetCurrentOption()
+	if index != int(config.OrderProvider) || first.view.rows.order != config.OrderGuestUsed {
+		t.Fatal("Settings did not preserve each connection's current order")
+	}
+	key(tcell.KeyEsc, 0)
+	if err := store.SavePreferences(config.Preferences{Interval: 5 * time.Second, Layout: config.Split, Order: config.OrderGuestUsed}, config.Preferences{Interval: time.Minute, Layout: config.Inventory, Order: config.OrderName}); err != nil {
 		t.Fatal(err)
 	}
 	edit("3s", true)
@@ -108,7 +129,7 @@ func TestSessionSettings(t *testing.T) {
 	// A second save from the same stale form must still require a reopen.
 	key(tcell.KeyEnter, 0)
 	awaitSave()
-	want := config.Preferences{Interval: time.Minute, Layout: Inventory}
+	want := config.Preferences{Interval: time.Minute, Layout: Inventory, Order: config.OrderName}
 	if got, err := store.LoadPreferences(); err != nil || got != want || w.dialog == nil {
 		t.Fatalf("retry from stale form: stored %+v, error %v, want %+v and an open form", got, err, want)
 	}
@@ -116,6 +137,9 @@ func TestSessionSettings(t *testing.T) {
 	for _, tc := range []struct{ override, want time.Duration }{{0, time.Minute}, {DefaultInterval, DefaultInterval}} {
 		fresh := newWorkspace(t.Context(), initial, tc.override, open, store)
 		fresh.connect(initial, "")
+		if fresh.active.view.rows.order != config.OrderName {
+			t.Error("restart lost the saved domain order")
+		}
 		got := fresh.active.view.inventory.Interval()
 		fresh.close()
 		if got != tc.want {

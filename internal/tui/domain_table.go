@@ -4,6 +4,7 @@ import (
 	"math"
 	"strings"
 
+	"github.com/advnpzn/xlui/internal/config"
 	"github.com/advnpzn/xlui/internal/session"
 	"github.com/advnpzn/xlui/internal/terminal"
 	"github.com/gdamore/tcell/v2"
@@ -15,7 +16,7 @@ type domainRows struct {
 	session.Snapshot
 	visible []int
 	meters  bool
-	order   domainOrder
+	order   config.DomainOrder
 	columns []domainColumn
 	widths  [colGuestUsed + 1]int
 }
@@ -89,7 +90,7 @@ func (r *domainRows) GetCell(row, index int) *tview.TableCell {
 	}
 	if row == 0 {
 		title := columnTitles[col]
-		if col == colName && r.order != orderProvider && len(title)+3+len(orderNames[r.order]) <= width {
+		if col == colName && r.order != config.OrderProvider && len(title)+3+len(orderNames[r.order]) <= width {
 			title += " / " + orderNames[r.order]
 		}
 		padding := strings.Repeat(" ", max(0, width-len(title)))

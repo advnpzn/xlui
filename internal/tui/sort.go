@@ -4,35 +4,35 @@ import (
 	"cmp"
 	"slices"
 
+	"github.com/advnpzn/xlui/internal/config"
 	"github.com/advnpzn/xlui/internal/xen"
-)
-
-type domainOrder uint8
-
-const (
-	orderProvider domainOrder = iota
-	orderName
-	orderCPU
-	orderAllocated
-	orderGuestUsed
 )
 
 var orderNames = [...]string{"Provider", "Name asc", "CPU desc", "Allocated desc", "Guest used desc"}
 
+func (b *browser) setOrder(order config.DomainOrder) {
+	if b.rows.order == order {
+		return
+	}
+	selected, _ := b.selected()
+	b.rows.order = order
+	b.project(selected, false)
+}
+
 // Sort the projection only. Provider data may also be in use by other views.
 func (r *domainRows) sortVisible() {
-	if r.order == orderProvider {
+	if r.order == config.OrderProvider {
 		return
 	}
 	slices.SortFunc(r.visible, func(i, j int) int {
 		a, b := r.Domains[i], r.Domains[j]
 		var byMetric int
 		switch r.order {
-		case orderCPU:
+		case config.OrderCPU:
 			byMetric = cmp.Compare(r.cpuSortValue(b), r.cpuSortValue(a))
-		case orderAllocated:
+		case config.OrderAllocated:
 			byMetric = cmp.Compare(b.MemoryMiB, a.MemoryMiB)
-		case orderGuestUsed:
+		case config.OrderGuestUsed:
 			byMetric = cmp.Compare(guestUsedSortValue(b), guestUsedSortValue(a))
 		}
 		if byMetric != 0 {

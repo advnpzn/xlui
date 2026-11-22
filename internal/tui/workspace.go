@@ -101,6 +101,7 @@ func (w *workspace) connect(p config.Profile, password string) {
 		return
 	}
 	h := &liveSession{ctx: ctx, prepare: source.Prepare, profile: p, view: newBrowser(p.Name), cancel: cancel}
+	h.view.rows.order = w.preferences.saved.Order
 	h.view.inventory = inv
 	h.view.sessions = func() { w.manager("") }
 	h.view.nextSession = w.next

@@ -115,3 +115,41 @@ func TestLayoutPreferenceMigrationAndConflict(t *testing.T) {
 		t.Fatalf("persisted preferences = %+v, %v; want %+v", got, err, saved)
 	}
 }
+
+func TestDomainOrderPreferences(t *testing.T) {
+	s := Store{Path: filepath.Join(t.TempDir(), "config.json")}
+	legacy := `{"version":1,"default_layout":"split","default_interval":"2s"}`
+	if err := os.WriteFile(s.preferencesPath(), []byte(legacy), 0600); err != nil {
+		t.Fatal(err)
+	}
+	before := Preferences{Layout: Split, Interval: 2 * time.Second, Order: OrderProvider}
+	if got, err := s.LoadPreferences(); err != nil || got != before {
+		t.Fatalf("legacy preferences = %+v, %v", got, err)
+	}
+	for _, order := range []DomainOrder{OrderName, OrderCPU, OrderAllocated, OrderGuestUsed, OrderProvider} {
+		after := before
+		after.Order = order
+		if err := s.SavePreferences(before, after); err != nil {
+			t.Fatal(err)
+		}
+		if err := s.SavePreferences(before, before); err == nil {
+			t.Fatal("stale save overwrote a new domain order")
+		}
+		if got, err := s.LoadPreferences(); err != nil || got != after {
+			t.Fatalf("stored preferences = %+v, %v; want %+v", got, err, after)
+		}
+		before = after
+	}
+	invalid := before
+	invalid.Order = DomainOrder(255)
+	if err := s.SavePreferences(before, invalid); err == nil {
+		t.Fatal("accepted an invalid domain order")
+	}
+	raw := `{"version":1,"default_order":"invalid"}`
+	if err := os.WriteFile(s.preferencesPath(), []byte(raw), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.LoadPreferences(); err == nil {
+		t.Fatal("accepted an unrecognized saved order")
+	}
+}
