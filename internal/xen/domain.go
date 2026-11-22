@@ -46,3 +46,12 @@ type ResidentHost struct {
 	Name string
 	UUID string
 }
+
+// VIF is one network frontend reported by xl network-list.
+type VIF struct {
+	ID, BackendID int
+	MAC           string
+	// Xen reports -1 when a XenStore field is unavailable.
+	State, EventChannel, TxRing, RxRing int
+	BackendPath                         string
+}

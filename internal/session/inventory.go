@@ -138,5 +138,6 @@ type Source struct {
 	Read      Reader
 	Close     func()
 
+	ReadNetwork      func(context.Context, xen.Identity) ([]xen.VIF, error)
 	ReadResidentHost func(context.Context, xen.Identity) (xen.ResidentHost, error)
 }

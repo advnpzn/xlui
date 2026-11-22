@@ -67,6 +67,11 @@ def check_dom0(console):
         console.expect_exact("Soft: all")
         console.send("\x1b")
         console.expect_exact("UUID")
+        console.send("n")
+        console.expect_exact("NETWORK INTERFACES")
+        console.expect_exact("No interfaces reported by xl.")
+        console.send("\x1b")
+        console.expect_exact("UUID")
         console.send("q")
         console.expect(r"(?:^|[\r\n])xlui-exit=0\r*\n")
     return native

@@ -30,6 +30,7 @@ type browser struct {
 	sessions, nextSession func()
 	guests, settings      func()
 	vcpus, residentHost   func()
+	network               func()
 	onLayout              func(Layout)
 	layout                Layout
 	host                  string
@@ -220,6 +221,8 @@ func (b *browser) key(ev *tcell.EventKey) bool {
 	if b.inspect != nil {
 		if ev.Key() == tcell.KeyRune && ev.Rune() == 'v' && b.vcpus != nil && b.canReadDetail() {
 			b.vcpus()
+		} else if ev.Key() == tcell.KeyRune && ev.Rune() == 'n' && b.network != nil && b.canReadDetail() {
+			b.network()
 		} else if ev.Key() == tcell.KeyRune && ev.Rune() == 'h' && b.canReadResidentHost() {
 			b.residentHost()
 		} else if ev.Key() == tcell.KeyEsc {
