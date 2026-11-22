@@ -19,7 +19,7 @@ apt_args=(
 )
 apt-get "${apt_args[@]}" update
 apt-get "${apt_args[@]}" --download-only -y install linux-image-arm64 \
-  xen-hypervisor-4.20-arm64 xen-utils-4.20 busybox-static openssh-server
+  xen-hypervisor-4.20-arm64 xen-utils-4.20 busybox-static openssh-server util-linux
 for deb in debs/*.deb; do dpkg-deb -x "$deb" root; done
 
 cd root
@@ -64,14 +64,28 @@ UsePAM no
 HostKey /etc/ssh/ssh_host_ed25519_key
 SSH
 
+# The diskless test guest reuses Dom0's kernel and runs a static BusyBox init.
+kernel=(boot/vmlinuz-*)
+mkdir -p guest ../domu/{bin,dev}
+ln "${kernel[0]}" guest/Image
+cp usr/bin/busybox ../domu/bin/
+cat > ../domu/init <<'INIT'
+#!/bin/busybox sh
+set -eu
+/bin/busybox mount -t devtmpfs devtmpfs /dev
+echo XLUI-DISPOSABLE-GUEST-READY > /dev/hvc0
+exec /bin/busybox sleep 3600
+INIT
+chmod +x ../domu/init
+(cd ../domu && find . -print0 | cpio --quiet --null -o -H newc --owner=0:0) | gzip -1 > guest/initrd.gz
+
 # Modules needed to bring up Xen were decompressed into /modules above.
 find . \( -path './boot' -o -path './usr/share' -o -path './usr/lib/modules' \
   -o -path './usr/lib/linux-image-*' -o -path './usr/lib/python*' -o -path './usr/lib/systemd' \) \
   -prune -o -print0 | cpio --quiet --null -o -H newc --owner=0:0 | gzip -1 > ../initramfs.gz
-kernel=(boot/vmlinuz-*)
 python3 "$scripts/verify-dom0.py" qemu-system-aarch64 \
   -machine virt,virtualization=on,gic-version=3 -accel tcg -cpu cortex-a57 -smp 2 -m 1200 \
   -display none -monitor none -serial stdio -nic none -no-reboot \
   -kernel boot/xen-4.20-arm64 -append 'dom0_mem=768M,max:768M dom0_max_vcpus=1 console=dtuart dtuart=serial0' \
-  -device "guest-loader,addr=0x44000000,kernel=${kernel[0]},bootargs=console=hvc0 rdinit=/init" \
+  -device "guest-loader,addr=0x44000000,kernel=${kernel[0]},bootargs=console=hvc0 rdinit=/init rootfstype=ramfs" \
   -device guest-loader,addr=0x51000000,initrd=../initramfs.gz
