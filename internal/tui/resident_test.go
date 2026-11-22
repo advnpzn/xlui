@@ -58,8 +58,9 @@ func TestReadOnlyResidentHostInspector(t *testing.T) {
 		t.Fatal("accepted late host placement after the VM halted")
 	}
 
-	// Re-open the VM from the fresh inventory, rather than the gone instance.
+	// A changed domid clears the old selection. Select the halted row anew.
 	h.view.key(tcell.NewEventKey(tcell.KeyEsc, 0, 0))
+	h.view.key(tcell.NewEventKey(tcell.KeyDown, 0, 0))
 	h.view.key(tcell.NewEventKey(tcell.KeyEnter, 0, 0))
 	if h.view.inspect == nil || h.view.inspect.domain.Identity() != halted.Identity() {
 		t.Fatal("expected to inspect the halted VM")
