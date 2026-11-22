@@ -25,8 +25,18 @@ install -m 0755 "$binary" xlui
 cp "$listing" inventory.txt
 cat > xl <<'SH'
 #!/bin/sh
-[ "$#" -eq 2 ] && [ "$1" = list ] && [ "$2" = -v ] || exit 1
-cat /opt/xlui-test/inventory.txt
+[ "$#" -eq 2 ] || exit 1
+case "$1 $2" in
+    "list -v") cat /opt/xlui-test/inventory.txt ;;
+    "network-list 9")
+        # Synthetic Xen 4.20 xl output for the inventory fixture's worker.
+        cat <<'VIF'
+Idx BE Mac Addr.         handle state evt-ch   tx-/rx-ring-ref BE-path
+2   1  00:16:3e:ab:cd:02      2     4      9    14/15          /local/domain/1/backend/vif/9/2
+VIF
+        ;;
+    *) exit 1 ;;
+esac
 SH
 chmod 0755 xl
 debugfs -w -f - root.ext4 <<'CMDS'
