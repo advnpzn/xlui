@@ -50,3 +50,42 @@ func TestNetworkInspector(t *testing.T) {
 		t.Fatal("Esc lost the selected domain")
 	}
 }
+
+func TestHaltedPoolVMNetworkInspector(t *testing.T) {
+	vm := xen.Domain{ID: -1, UUID: "11111111-1111-4111-8111-111111111111", Name: "offline", State: "Halted"}
+	vif := xen.PoolVIF{
+		UUID: "33333333-3333-4333-8333-333333333333", Device: "0", MAC: "00:16:3e:01:02:03",
+		NetworkUUID: "44444444-4444-4444-8444-444444444444", NetworkName: "storage",
+	}
+	profile := config.Profile{Name: "pool", Type: config.XAPI}
+	target := make(chan xen.Identity, 1)
+	src := session.Source{
+		Read: func(context.Context) ([]xen.Domain, error) { return []xen.Domain{vm}, nil },
+		ReadPoolNetwork: func(_ context.Context, id xen.Identity) ([]xen.PoolVIF, error) {
+			target <- id
+			return []xen.PoolVIF{vif}, nil
+		},
+	}
+	w := newWorkspace(t.Context(), profile, time.Hour, func(config.Profile, string) (session.Source, error) { return src, nil }, config.Store{})
+	t.Cleanup(w.close)
+	w.connect(profile, "test-password")
+	w.applyUpdate(<-w.updates)
+
+	b := w.active.view
+	b.key(tcell.NewEventKey(tcell.KeyEnter, 0, 0))
+	b.key(tcell.NewEventKey(tcell.KeyRune, 'n', 0))
+	w.applyDialogResult(nextPlacementResult(t, w))
+	if id := <-target; id != vm.Identity() || w.dialog == nil {
+		t.Fatalf("expected network view for %v, requested %v", vm.Identity(), id)
+	}
+	body := w.dialog.body.(*tview.TextView).GetText(false)
+	for _, detail := range []string{vif.UUID, vif.MAC, vif.NetworkName, vif.NetworkUUID, "Detached"} {
+		if !strings.Contains(body, detail) {
+			t.Errorf("missing pool interface field %q in %q", detail, body)
+		}
+	}
+	w.dialog.key(tcell.NewEventKey(tcell.KeyEsc, 0, 0))
+	if w.dialog != nil || b.inspect == nil || b.inspect.domain.Identity() != vm.Identity() {
+		t.Fatal("Esc lost the halted VM")
+	}
+}

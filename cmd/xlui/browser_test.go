@@ -100,7 +100,7 @@ func TestReadOnlyDropsManagementForEveryOpenedProfile(t *testing.T) {
 			if s.Prepare != nil || s.Read == nil {
 				t.Fatal("read-only session exposed incorrect capabilities")
 			}
-			if (s.ReadNetwork != nil) != (p.Type != config.XAPI) {
+			if (s.ReadNetwork != nil) != (p.Type != config.XAPI) || (s.ReadPoolNetwork != nil) != (p.Type == config.XAPI) {
 				t.Fatalf("read-only %s session exposed incorrect network interface capability", p.Type)
 			}
 			if (s.ReadVCPUs != nil) != (p.Type != config.XAPI) {

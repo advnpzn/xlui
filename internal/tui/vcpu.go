@@ -33,6 +33,13 @@ func (w *workspace) bindInspectorReads(h *liveSession, source session.Source) {
 				return formatNetwork(rows, time.Now()), err
 			})
 		}
+	} else if source.ReadPoolNetwork != nil {
+		h.view.network = func() {
+			w.readDetail(h, "network interfaces", func(ctx context.Context, target xen.Identity) (string, error) {
+				rows, err := source.ReadPoolNetwork(ctx, target)
+				return formatPoolNetwork(rows, time.Now()), err
+			})
+		}
 	}
 	if source.ReadVCPUs != nil {
 		h.view.vcpus = func() {
