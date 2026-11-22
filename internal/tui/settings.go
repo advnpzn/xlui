@@ -5,17 +5,18 @@ import (
 	"strings"
 	"time"
 
+	"github.com/advnpzn/xlui/internal/config"
 	"github.com/rivo/tview"
 )
 
-type intervalSettings struct {
-	saved time.Duration
+type operatorSettings struct {
+	saved config.Preferences
 	err   error
 }
 
-func (p intervalSettings) effective() time.Duration {
-	if p.saved != 0 {
-		return p.saved
+func (p operatorSettings) effective() time.Duration {
+	if p.saved.Interval != 0 {
+		return p.saved.Interval
 	}
 	return DefaultInterval
 }
@@ -25,8 +26,11 @@ func (w *workspace) settings(h *liveSession) {
 	form := connectionForm()
 	field := tview.NewInputField().SetLabel("Refresh interval").SetText(h.view.inventory.Interval().String()).SetFieldWidth(20)
 	form.AddFormItem(field)
+	layoutField := tview.NewDropDown().SetLabel("Dashboard layout").SetOptions(layoutNames[:], nil).SetCurrentOption(int(w.layout))
+	form.AddFormItem(layoutField)
+	before := w.preferences.saved
 	hint := func() string {
-		text := fmt.Sprintf("%s · Default %s", h.profile.Name, w.preferences.effective())
+		text := fmt.Sprintf("%s · Defaults %s · %s", h.profile.Name, w.preferences.effective(), layoutNames[w.preferences.saved.Layout])
 		if w.interval > 0 {
 			text += fmt.Sprintf(" · New sessions use --interval %s", w.interval)
 		}
@@ -39,22 +43,27 @@ func (w *workspace) settings(h *liveSession) {
 			dialog.message = "Enter a duration of at least 100ms, such as 500ms or 2s."
 			return
 		}
-		if !save {
-			h.view.inventory.SetInterval(interval)
+		option, _ := layoutField.GetCurrentOption()
+		after := config.Preferences{Interval: interval, Layout: Layout(option)}
+		applyToView := func() {
+			w.layout = after.Layout
+			h.view.inventory.SetInterval(after.Interval)
 			back()
+		}
+		if !save {
+			applyToView()
 			return
 		}
-		before := w.preferences.saved
 		busy := connectionList()
-		busy.AddItem("Saving refresh interval", "", 0, nil)
+		busy.AddItem("Saving settings", "", 0, nil)
 		saving := w.show("SETTINGS", h.profile.Name, busy, func() {})
 		w.workers.Add(1)
 		go func() {
 			defer w.workers.Done()
-			err := w.store.SaveInterval(before, interval)
-			current := intervalSettings{saved: interval}
+			err := w.store.SavePreferences(before, after)
+			current := operatorSettings{saved: after}
 			if err != nil {
-				current.saved, current.err = w.store.LoadInterval()
+				current.saved, current.err = w.store.LoadPreferences()
 				if current.err != nil {
 					current.saved = before
 				}
@@ -71,8 +80,7 @@ func (w *workspace) settings(h *liveSession) {
 					dialog.message = err.Error()
 					return
 				}
-				h.view.inventory.SetInterval(interval)
-				back()
+				applyToView()
 			}:
 			case <-w.ctx.Done():
 			}

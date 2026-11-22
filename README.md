@@ -71,7 +71,7 @@ xlui writes profiles to `$XDG_CONFIG_HOME/xlui/config.json`, normally `~/.config
 
 ### Read the dashboard
 
-Press **L** or click the current layout in the footer to cycle through dashboard layouts. Use `xlui --layout split` to choose a starting layout. The layout applies to all open sessions for that run.
+Press **L** or click the current layout in the footer to cycle through dashboard layouts. Use `xlui --layout split` to override the saved starting layout. The layout applies to all open sessions for that run.
 
 | Layout | What it shows |
 | --- | --- |
@@ -135,7 +135,7 @@ Mouse controls are enabled automatically in terminals that support mouse reporti
 
 Press `o` to cycle through provider order, name, CPU load, allocated memory and guest-used memory. Resource readings sort highest first, with unavailable readings last. Each connection remembers its order while open. Sorting and filtering use the latest cached observation.
 
-The built-in refresh interval is **2s**. Press `,` from the dashboard or inspector to enter an exact interval such as `750ms` or `5s`. **Apply** updates only the active session. **Apply + save default** also sets the starting interval for new sessions, including after a restart. xlui stores the default in `preferences.json` alongside the connection profiles. An explicit `--interval` takes precedence for new sessions in that run.
+The built-in refresh interval is **2s**. Press `,` from the dashboard or inspector to enter an exact interval such as `750ms` or `5s`. Select **Dashboard layout** to choose Overview, Inventory or Split. **Apply** changes the active session’s interval and the layout across open sessions. **Apply + save default** also saves both choices for future runs. xlui stores the default in `preferences.json` alongside the connection profiles. An explicit `--interval` takes precedence for new sessions in that run.
 
 For a local or SSH connection, inspect a domain and press `v` to sample its vCPU placement, including in read-only mode. Each row shows the physical CPU observed by `xl vcpu-list`, scheduler state, cumulative CPU time, and allowed (hard) and preferred (soft) CPU masks. A vCPU can migrate after the sample. Press Esc to return, then `v` for a fresh sample. This view requires an xl version that reports both affinity masks.
 

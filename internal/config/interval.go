@@ -9,7 +9,13 @@ import (
 
 const MinInterval = 100 * time.Millisecond
 
-type preferences struct {
+type Preferences struct {
+	Interval time.Duration
+	Layout   Layout
+}
+
+type preferencesFile struct {
+	DefaultLayout   string `json:"default_layout,omitempty"`
 	Version         int    `json:"version"`
 	DefaultInterval string `json:"default_interval,omitempty"`
 }
@@ -20,34 +26,42 @@ func (s Store) preferencesPath() string {
 	return filepath.Join(filepath.Dir(s.Path), "preferences.json")
 }
 
-// LoadInterval returns the saved default for new sessions, or zero if unset.
-func (s Store) LoadInterval() (time.Duration, error) {
-	var prefs preferences
-	err := readJSON(s.preferencesPath(), &prefs)
+// LoadPreferences also accepts the original interval-only preferences file.
+func (s Store) LoadPreferences() (Preferences, error) {
+	var file preferencesFile
+	err := readJSON(s.preferencesPath(), &file)
 	if errors.Is(err, os.ErrNotExist) {
-		return 0, nil
+		return Preferences{}, nil
 	}
 	if err != nil {
-		return 0, err
+		return Preferences{}, err
 	}
-	if prefs.Version != 1 {
-		return 0, errors.New("unsupported xlui preferences version")
+	if file.Version != 1 {
+		return Preferences{}, errors.New("unsupported xlui preferences version")
 	}
-	if prefs.DefaultInterval == "" {
-		return 0, nil
+	var prefs Preferences
+	if file.DefaultInterval != "" {
+		prefs.Interval, err = time.ParseDuration(file.DefaultInterval)
+		if err != nil || (prefs.Interval != 0 && prefs.Interval < MinInterval) {
+			return Preferences{}, errors.New("default_interval must be zero or a duration of at least 100ms")
+		}
 	}
-	d, err := time.ParseDuration(prefs.DefaultInterval)
-	if err != nil || (d != 0 && d < MinInterval) {
-		return 0, errors.New("default_interval must be zero or a duration of at least 100ms")
+	if file.DefaultLayout != "" {
+		prefs.Layout, err = ParseLayout(file.DefaultLayout)
+		if err != nil {
+			return Preferences{}, err
+		}
 	}
-	return d, nil
+	return prefs, nil
 }
 
-// SaveInterval changes the default if it still matches the value the operator
-// opened. A zero duration clears the override.
-func (s Store) SaveInterval(before, after time.Duration) error {
-	if after != 0 && after < MinInterval {
+// SavePreferences compares and replaces the settings together under one lock.
+func (s Store) SavePreferences(before, after Preferences) error {
+	if after.Interval != 0 && after.Interval < MinInterval {
 		return errors.New("default interval must be zero or at least 100ms")
+	}
+	if int(after.Layout) >= len(layouts) {
+		return errors.New("unsupported default layout")
 	}
 	path := s.preferencesPath()
 	lock, err := lockConfig(path)
@@ -55,16 +69,19 @@ func (s Store) SaveInterval(before, after time.Duration) error {
 		return err
 	}
 	defer lock.Close()
-	current, err := s.LoadInterval()
+	current, err := s.LoadPreferences()
 	if err != nil {
 		return err
 	}
 	if current != before {
-		return errors.New("default interval changed on disk; reopen settings")
+		return errors.New("default settings changed on disk; reopen settings")
 	}
-	prefs := preferences{Version: 1}
-	if after != 0 {
-		prefs.DefaultInterval = after.String()
+	file := preferencesFile{Version: 1}
+	if after.Interval != 0 {
+		file.DefaultInterval = after.Interval.String()
 	}
-	return writeJSON(path, prefs)
+	if after.Layout != Overview {
+		file.DefaultLayout = layouts[after.Layout]
+	}
+	return writeJSON(path, file)
 }

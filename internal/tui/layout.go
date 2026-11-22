@@ -3,33 +3,22 @@ package tui
 import (
 	"fmt"
 
+	"github.com/advnpzn/xlui/internal/config"
 	"github.com/gdamore/tcell/v2"
 )
 
 // Layout specifies how the dashboard arranges live inventory and metrics.
-type Layout uint8
+type Layout = config.Layout
 
 const (
-	Overview Layout = iota
-	Inventory
-	Split
+	Overview  = config.Overview
+	Inventory = config.Inventory
+	Split     = config.Split
+	// SavedLayout selects the configured layout when no CLI override was given.
+	SavedLayout Layout = 255
 )
 
 var layoutNames = [...]string{"Overview", "Inventory", "Split"}
-
-// ParseLayout reads the dashboard name used by --layout.
-func ParseLayout(name string) (Layout, error) {
-	switch name {
-	case "overview":
-		return Overview, nil
-	case "inventory":
-		return Inventory, nil
-	case "split":
-		return Split, nil
-	default:
-		return Overview, fmt.Errorf("invalid layout %q; choose overview, inventory or split", name)
-	}
-}
 
 func (b *browser) setLayout(layout Layout) {
 	if b.layout != layout {

@@ -27,7 +27,9 @@ func Run(ctx context.Context, initial config.Profile, interval time.Duration, la
 
 func runScreen(ctx context.Context, screen tcell.Screen, initial config.Profile, interval time.Duration, layout Layout, password string, open OpenSource, store config.Store) error {
 	w := newWorkspace(ctx, initial, interval, open, store)
-	w.layout = layout
+	if layout != SavedLayout {
+		w.layout = layout
+	}
 	defer w.close()
 	w.connect(initial, password)
 	screen.EnableMouse(tcell.MouseButtonEvents)

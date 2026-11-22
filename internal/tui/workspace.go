@@ -41,7 +41,7 @@ type workspace struct {
 	store         config.Store
 	interval      time.Duration // explicit CLI override, zero uses the saved default
 	layout        Layout
-	preferences   intervalSettings
+	preferences   operatorSettings
 	settingsDone  chan func()
 	open          OpenSource
 	live          map[config.Profile]*liveSession
@@ -55,7 +55,7 @@ type workspace struct {
 
 func newWorkspace(parent context.Context, initial config.Profile, interval time.Duration, open OpenSource, store config.Store) *workspace {
 	ctx, cancel := context.WithCancel(parent)
-	saved, err := store.LoadInterval()
+	saved, err := store.LoadPreferences()
 	return &workspace{
 		ctx:           ctx,
 		cancel:        cancel,
@@ -64,7 +64,8 @@ func newWorkspace(parent context.Context, initial config.Profile, interval time.
 		open:          open,
 		store:         store,
 		live:          make(map[config.Profile]*liveSession),
-		preferences:   intervalSettings{saved: saved, err: err},
+		layout:        saved.Layout,
+		preferences:   operatorSettings{saved: saved, err: err},
 		settingsDone:  make(chan func()),
 		updates:       make(chan hostUpdate),
 		dialogResults: make(chan dialogResult),
@@ -154,7 +155,7 @@ func (w *workspace) disconnect(p config.Profile) {
 			w.dismissDialog()
 			w.active = nil
 			if len(w.order) > 0 {
-				w.active = w.live[w.order[0]]
+				w.activate(w.live[w.order[0]])
 			}
 		}
 	}

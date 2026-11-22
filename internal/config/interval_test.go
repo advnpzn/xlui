@@ -16,11 +16,11 @@ func TestIntervalPreservesConnectionFile(t *testing.T) {
 	}
 	const interval = time.Second + 500*time.Microsecond
 	for _, step := range [][2]time.Duration{{0, interval}, {interval, 0}} {
-		if err := s.SaveInterval(step[0], step[1]); err != nil {
+		if err := s.SavePreferences(Preferences{Interval: step[0]}, Preferences{Interval: step[1]}); err != nil {
 			t.Fatal(err)
 		}
-		got, err := s.LoadInterval()
-		if err != nil || got != step[1] {
+		got, err := s.LoadPreferences()
+		if err != nil || got != (Preferences{Interval: step[1]}) {
 			t.Fatalf("saved interval = %v, %v", got, err)
 		}
 		data, err := os.ReadFile(s.Path)
@@ -41,7 +41,7 @@ func TestConcurrentIntervalSavesHaveOneWinner(t *testing.T) {
 	for _, interval := range []time.Duration{time.Second, time.Minute} {
 		go func() {
 			<-start
-			done <- result{interval, s.SaveInterval(0, interval)}
+			done <- result{interval, s.SavePreferences(Preferences{}, Preferences{Interval: interval})}
 		}()
 	}
 	close(start)
@@ -53,26 +53,26 @@ func TestConcurrentIntervalSavesHaveOneWinner(t *testing.T) {
 	if first.err != nil {
 		winner = second.interval
 	}
-	if err := s.SaveInterval(0, 2*time.Second); err == nil {
+	if err := s.SavePreferences(Preferences{}, Preferences{Interval: 2 * time.Second}); err == nil {
 		t.Fatal("accepted stale edit")
 	}
-	got, err := s.LoadInterval()
-	if err != nil || got != winner {
+	got, err := s.LoadPreferences()
+	if err != nil || got != (Preferences{Interval: winner}) {
 		t.Fatalf("stored interval = %v, %v, winner = %v", got, err, winner)
 	}
 }
 
 func TestInvalidIntervalPreservesConfiguration(t *testing.T) {
 	s := Store{Path: filepath.Join(t.TempDir(), "config.json")}
-	if got, err := s.LoadInterval(); got != 0 || err != nil {
+	if got, err := s.LoadPreferences(); got != (Preferences{}) || err != nil {
 		t.Fatalf("missing configuration = %v, %v", got, err)
 	}
 	for _, d := range []time.Duration{-time.Second, MinInterval - time.Nanosecond} {
-		if err := s.SaveInterval(0, d); err == nil {
+		if err := s.SavePreferences(Preferences{}, Preferences{Interval: d}); err == nil {
 			t.Fatalf("accepted interval %v", d)
 		}
 	}
-	if err := s.SaveInterval(0, MinInterval); err != nil {
+	if err := s.SavePreferences(Preferences{}, Preferences{Interval: MinInterval}); err != nil {
 		t.Fatal(err)
 	}
 	data, err := os.ReadFile(s.preferencesPath())
@@ -84,12 +84,34 @@ func TestInvalidIntervalPreservesConfiguration(t *testing.T) {
 		if err := os.WriteFile(s.preferencesPath(), []byte(original), 0600); err != nil {
 			t.Fatal(err)
 		}
-		if err := s.SaveInterval(0, time.Second); err == nil {
+		if err := s.SavePreferences(Preferences{}, Preferences{Interval: time.Second}); err == nil {
 			t.Errorf("replaced config containing %s", value)
 		}
 		data, err := os.ReadFile(s.preferencesPath())
 		if err != nil || string(data) != original {
 			t.Fatalf("configuration lost: %s, %v", value, err)
 		}
+	}
+}
+
+func TestLayoutPreferenceMigrationAndConflict(t *testing.T) {
+	s := Store{Path: filepath.Join(t.TempDir(), "config.json")}
+	if err := os.WriteFile(s.preferencesPath(), []byte(`{"version":1,"default_interval":"750ms"}`), 0600); err != nil {
+		t.Fatal(err)
+	}
+	old, err := s.LoadPreferences()
+	if err != nil || old != (Preferences{Interval: 750 * time.Millisecond, Layout: Overview}) {
+		t.Fatalf("legacy preferences = %+v, %v", old, err)
+	}
+	saved := old
+	saved.Layout = Split
+	if err := s.SavePreferences(old, saved); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SavePreferences(old, Preferences{Interval: time.Second}); err == nil {
+		t.Fatal("stale interval edit overwrote a concurrent layout change")
+	}
+	if got, err := s.LoadPreferences(); err != nil || got != saved {
+		t.Fatalf("persisted preferences = %+v, %v; want %+v", got, err, saved)
 	}
 }
