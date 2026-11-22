@@ -30,3 +30,21 @@ func xenbusState(state int) string {
 	}
 	return number(state)
 }
+
+func formatPoolNetwork(rows []xen.PoolVIF, observed time.Time) string {
+	var out strings.Builder
+	fmt.Fprintf(&out, "Sampled %s\n", observed.UTC().Format(time.RFC3339))
+	if len(rows) == 0 {
+		out.WriteString("\nNo network interfaces configured for this VM.")
+	}
+	for _, row := range rows {
+		state := "Detached"
+		if row.Attached {
+			state = "Attached"
+		}
+		fmt.Fprintf(&out, "\nDevice %s  ·  MAC %s  ·  %s\n  VIF UUID  %s\n  Network  %s\n  Network UUID  %s\n",
+			terminal.SingleLine(row.Device), terminal.SingleLine(row.MAC), state, terminal.SingleLine(row.UUID),
+			terminal.SingleLine(row.NetworkName), terminal.SingleLine(row.NetworkUUID))
+	}
+	return out.String()
+}

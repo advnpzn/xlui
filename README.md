@@ -126,7 +126,7 @@ Mouse controls are enabled automatically in terminals that support mouse reporti
 | Cycle domain order | `o` | Click **Sort** |
 | Open the inspector | Enter | Double-click a row or click **Inspect** |
 | Look up a VM’s resident pool host in a XenAPI inspector | h | Click **Host** |
-| List reported virtual network interfaces in a local or SSH inspector | n | Click **Network** |
+| Inspect virtual network interfaces for a domain or pool VM | n | Click **Network** |
 | Sample vCPU placement in a local or SSH inspector | v | Click **vCPUs** |
 | Scroll the list or inspector | ↑ / ↓ or Page Up / Page Down | Scroll the wheel over the list or inspector |
 | Return to the list | Esc | Click **Back** |
@@ -141,7 +141,9 @@ The built-in refresh interval is **2s**. Press `,` from the dashboard or inspect
 
 On a XenAPI connection, inspect a running or paused VM and press `h` to look up its current host label and UUID on the pool coordinator. This read-only snapshot checks for migration during the lookup. Press Esc and `h` to sample again.
 
-In a local or SSH inspector, press `n` to read the selected domain’s virtual interfaces with `xl network-list`. Each reported interface shows its MAC, backend domain and XenStore path, Xenbus state, event channel, and TX/RX ring references. A dash marks an unavailable reading. The lookup runs on demand and also works in read-only mode. Press Esc to return.
+In a local or SSH inspector, press `n` to read the selected domain’s virtual interfaces with `xl network-list`. Each reported interface shows its MAC, backend domain and XenStore path, Xenbus state, event channel, and TX/RX ring references. A dash marks an unavailable reading.
+
+On an XAPI connection, the same key lists the selected VM’s configured interfaces, including detached interfaces on halted VMs. Each row shows the device, MAC, attachment state, VIF UUID, and pool network name and UUID. Both providers read on demand and support read-only mode. Press Esc to return.
 
 For a local or SSH connection, inspect a domain and press `v` to sample its vCPU placement, including in read-only mode. Each row shows the physical CPU observed by `xl vcpu-list`, scheduler state, cumulative CPU time, and allowed (hard) and preferred (soft) CPU masks. A vCPU can migrate after the sample. Press Esc to return, then `v` for a fresh sample. This view requires an xl version that reports both affinity masks.
 

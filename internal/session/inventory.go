@@ -139,5 +139,6 @@ type Source struct {
 	Close     func()
 
 	ReadNetwork      func(context.Context, xen.Identity) ([]xen.VIF, error)
+	ReadPoolNetwork  func(context.Context, xen.Identity) ([]xen.PoolVIF, error)
 	ReadResidentHost func(context.Context, xen.Identity) (xen.ResidentHost, error)
 }

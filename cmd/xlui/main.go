@@ -156,7 +156,10 @@ func openMonitor(p config.Profile, password string) (session.Source, error) {
 		if err != nil {
 			return session.Source{}, err
 		}
-		return session.Source{Read: m.Read, Close: m.Close, Prepare: m.Prepare, ReadResidentHost: m.ReadResidentHost}, nil
+		return session.Source{
+			Read: m.Read, Close: m.Close, Prepare: m.Prepare,
+			ReadPoolNetwork: m.ReadNetwork, ReadResidentHost: m.ReadResidentHost,
+		}, nil
 	}
 	runner, err := transport.NewRunner(p.Address)
 	if err != nil {

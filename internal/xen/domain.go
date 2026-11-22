@@ -55,3 +55,10 @@ type VIF struct {
 	State, EventChannel, TxRing, RxRing int
 	BackendPath                         string
 }
+
+// PoolVIF describes a VM's configured XenAPI interface and its attachment state.
+type PoolVIF struct {
+	UUID, Device, MAC        string
+	NetworkUUID, NetworkName string
+	Attached                 bool
+}
