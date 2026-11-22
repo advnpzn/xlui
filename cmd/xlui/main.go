@@ -59,7 +59,7 @@ func runWithBrowser(ctx context.Context, args []string, stdout, stderr io.Writer
 	readOnly := flags.Bool("read-only", false, "disable guest changes in all sessions")
 	host := flags.String("host", "", "OpenSSH destination (omit for local Dom0)")
 	interval := flags.Duration("interval", 0, "override the saved monitoring interval for new sessions (built-in 2s, minimum 100ms)")
-	layoutName := flags.String("layout", "overview", "dashboard layout: overview, inventory or split")
+	layoutName := flags.String("layout", "", "override the saved dashboard layout: overview, inventory or split")
 	endpoint := flags.String("xapi", "", "HTTPS URL of the XAPI pool coordinator")
 	username := flags.String("xapi-user", "", "XAPI user (read the password from XLUI_XAPI_PASSWORD)")
 	caFile := flags.String("xapi-ca", "", "PEM file containing additional trusted XAPI CA certificates")
@@ -98,9 +98,13 @@ func runWithBrowser(ctx context.Context, args []string, stdout, stderr io.Writer
 	if interactive && supplied["interval"] && *interval < tui.MinInterval {
 		return fmt.Errorf("--interval must be at least %s", tui.MinInterval)
 	}
-	layout, err := tui.ParseLayout(*layoutName)
-	if err != nil {
-		return err
+	layout := tui.SavedLayout
+	if supplied["layout"] {
+		parsed, err := config.ParseLayout(*layoutName)
+		if err != nil {
+			return err
+		}
+		layout = parsed
 	}
 	if supplied["xapi"] {
 		if supplied["host"] {

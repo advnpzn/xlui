@@ -50,6 +50,11 @@ func TestSessionSettings(t *testing.T) {
 		field := w.dialog.body.(*tview.Form).GetFormItem(0).(*tview.InputField)
 		field.SetText(value)
 		key(tcell.KeyTab, 0)
+		// Select Split by keyboard. The menu starts on the active layout.
+		key(tcell.KeyEnter, 0)
+		key(tcell.KeyEnd, 0)
+		key(tcell.KeyEnter, 0)
+		key(tcell.KeyTab, 0)
 		if save {
 			key(tcell.KeyTab, 0)
 		}
@@ -70,11 +75,11 @@ func TestSessionSettings(t *testing.T) {
 	}
 	key(tcell.KeyEsc, 0)
 	edit("750ms", false)
-	if w.dialog != nil || first.view.inventory.Interval() != 750*time.Millisecond {
+	if w.dialog != nil || first.view.inventory.Interval() != 750*time.Millisecond || first.view.layout != Split {
 		t.Fatal("Apply did not change the active session")
 	}
-	if got, err := store.LoadInterval(); got != 0 || err != nil {
-		t.Fatalf("Apply persisted %s: %v", got, err)
+	if got, err := store.LoadPreferences(); got != (config.Preferences{}) || err != nil {
+		t.Fatalf("Apply persisted %+v: %v", got, err)
 	}
 
 	key(tcell.KeyEnter, 0)
@@ -88,16 +93,24 @@ func TestSessionSettings(t *testing.T) {
 		t.Fatal("saving the interval replaced the session or inspector")
 	}
 	w.connect(second, "")
-	if w.active.view.inventory.Interval() != 5*time.Second {
+	if w.active.view.inventory.Interval() != 5*time.Second || w.active.view.layout != Split {
 		t.Fatal("new connection did not inherit saved interval")
 	}
-	if err := store.SaveInterval(5*time.Second, time.Minute); err != nil {
+	if err := store.SavePreferences(config.Preferences{Interval: 5 * time.Second, Layout: config.Split}, config.Preferences{Interval: time.Minute, Layout: config.Inventory}); err != nil {
 		t.Fatal(err)
 	}
 	edit("3s", true)
 	awaitSave()
 	if w.dialog == nil || w.dialog.message == "" || !strings.Contains(w.dialog.hint, "1m0s") || w.active.view.inventory.Interval() != 5*time.Second {
 		t.Fatal("stale save changed the sampler or concealed the new default")
+	}
+
+	// A second save from the same stale form must still require a reopen.
+	key(tcell.KeyEnter, 0)
+	awaitSave()
+	want := config.Preferences{Interval: time.Minute, Layout: Inventory}
+	if got, err := store.LoadPreferences(); err != nil || got != want || w.dialog == nil {
+		t.Fatalf("retry from stale form: stored %+v, error %v, want %+v and an open form", got, err, want)
 	}
 
 	for _, tc := range []struct{ override, want time.Duration }{{0, time.Minute}, {DefaultInterval, DefaultInterval}} {
@@ -127,5 +140,46 @@ func TestSessionSettings(t *testing.T) {
 	w.connect(config.Profile{Name: "another", Type: config.Local}, "")
 	if got := w.active.view.inventory.Interval(); got != time.Minute {
 		t.Fatalf("failed save and reload discarded the last observed default: %s", got)
+	}
+}
+
+func TestStartupLayoutPreferenceAndOverride(t *testing.T) {
+	store := config.Store{Path: filepath.Join(t.TempDir(), "config.json")}
+	if err := store.SavePreferences(config.Preferences{}, config.Preferences{Layout: Split}); err != nil {
+		t.Fatal(err)
+	}
+	profile := config.Profile{Name: "local", Type: config.Local}
+	open := func(config.Profile, string) (session.Source, error) {
+		return session.Source{Read: func(context.Context) ([]xen.Domain, error) { return nil, nil }}, nil
+	}
+	for _, tc := range []struct {
+		layout Layout
+		button string
+	}{{SavedLayout, "[L Split]"}, {Overview, "[L Overview]"}} {
+		t.Run(tc.button, func(t *testing.T) {
+			screen := tcell.NewSimulationScreen("UTF-8")
+			if err := screen.Init(); err != nil {
+				t.Fatal(err)
+			}
+			defer screen.Fini()
+			screen.SetSize(120, 36)
+			// The event loop draws the first dashboard before reading the quit key.
+			if err := screen.PostEvent(tcell.NewEventKey(tcell.KeyRune, 'q', 0)); err != nil {
+				t.Fatal(err)
+			}
+			ctx, cancel := context.WithTimeout(t.Context(), 3*time.Second)
+			defer cancel()
+			if err := runScreen(ctx, screen, profile, time.Minute, tc.layout, "", open, store); err != nil {
+				t.Fatal(err)
+			}
+			cells, _, _ := screen.GetContents()
+			var display strings.Builder
+			for _, cell := range cells {
+				display.WriteString(string(cell.Runes))
+			}
+			if !strings.Contains(display.String(), tc.button) {
+				t.Fatalf("dashboard did not show expected layout %q", tc.button)
+			}
+		})
 	}
 }

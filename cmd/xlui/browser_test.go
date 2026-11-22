@@ -23,7 +23,8 @@ func TestBrowserRouting(t *testing.T) {
 		interval   time.Duration
 		layout     tui.Layout
 	}{
-		{"xl", nil, "local Dom0", 0, tui.Overview},
+		{"xl", nil, "local Dom0", 0, tui.SavedLayout},
+		{"xl", []string{"--layout", "overview"}, "local Dom0", 0, tui.Overview},
 		{"xl", []string{"--interval", "2s", "--layout", "split"}, "local Dom0", 2 * time.Second, tui.Split},
 		{"ssh", []string{"--host", "bench", "--interval", "375ms", "--layout", "inventory"}, "bench", 375 * time.Millisecond, tui.Inventory},
 	} {
